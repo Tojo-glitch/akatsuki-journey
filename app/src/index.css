@@ -498,3 +498,26 @@ textarea { resize: none; height: 72px; }
   .cal-grid { gap: 2px; }
   .cal-day { min-height: 36px; padding: 3px 4px; }
 }
+
+/* ── Phase 1 additions ── */
+
+/* Field validation errors */
+.field-error { font-size: 11px; color: var(--red); margin-top: 3px; display: block; }
+
+/* Settings section */
+.settings-section-header {
+  display: flex; align-items: center; gap: 8px;
+  padding-bottom: 12px; margin-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+/* Network banner offset — push content down when banner shows */
+.network-offset { padding-top: 36px; }
+
+/* Better form-grid3 on very small screens */
+@media (max-width: 360px) {
+  .form-grid3 { grid-template-columns: 1fr; }
+}
+
+/* Lightbox close button visible on all sizes */
+.lightbox-overlay { position: relative; }
