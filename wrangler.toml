@@ -1,5 +1,6 @@
 name = "Akatsuki-journey"
 compatibility_date = "2024-01-01"
+pages_build_output_dir = "dist"
 
 [build]
 command = "npm run build"
@@ -7,4 +8,3 @@ destination = "dist"
 
 [build.environment_variables]
 NODE_VERSION = "20"
-pages_build_output_dir = "dist" .
