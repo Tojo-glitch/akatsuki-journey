@@ -203,7 +203,7 @@ const [page,   setPage]   = useState('dashboard')
           <div style={{ marginTop: 8 }}>
             <div className="pair-sel-label">Quick Pair</div>
             <select className="pair-select" onChange={() => { setEditData(null); nav('add') }}>
-              {config.pairs.map(p => <option key={p}>{p}</option>)}
+              {(config?.pairs || []).map(p => <option key={p}>{p}</option>)}
             </select>
           </div>
         </div>
