@@ -199,9 +199,9 @@ function VisitorSection({ requirePin, toast }) {
 }
 
 export default function Settings({ config, setConfig, requirePin, toast }) {
-  const [pairs,    setPairs]    = useState([...config.pairs])
-  const [setups,   setSetups]   = useState([...config.setupTypes])
-  const [btags,    setBtags]    = useState([...config.behaviorTags])
+const [pairs,    setPairs]    = useState([...(config?.pairs || [])])
+const [setups,   setSetups]   = useState([...(config?.setupTypes || [])])
+const [btags,    setBtags]    = useState([...(config?.behaviorTags || [])])
   const [newPair,  setNewPair]  = useState('')
   const [newSetup, setNewSetup] = useState('')
   const [newBtag,  setNewBtag]  = useState('')
@@ -287,9 +287,9 @@ export default function Settings({ config, setConfig, requirePin, toast }) {
           {[
             ['Version', 'v3.0.0'], ['Database', 'Supabase (Postgres)'],
             ['Hosting', 'Cloudflare Pages'], ['PIN Security', 'bcrypt hashed'],
-            ['PIN Session', '15 min'], ['Pairs', config.pairs.length + ' configured'],
-            ['Setup Types', config.setupTypes.length + ' configured'],
-            ['Behavior Tags', config.behaviorTags.length + ' configured'],
+            ['PIN Session', '15 min'], ['Pairs', (config?.pairs?.length || 0) + ' configured'],
+            ['Setup Types', (config?.setupTypes?.length || 0) + ' configured'],
+            ['Behavior Tags', (config?.behaviorTags?.length || 0) + ' configured'],
           ].map(([k, v]) => (
             <div key={k} style={{ background: 'var(--bg)', borderRadius: 8, padding: '10px 12px', border: '1px solid var(--border)' }}>
               <div style={{ fontSize: 10, color: 'var(--t3)', textTransform: 'uppercase', letterSpacing: '.07em', marginBottom: 3 }}>{k}</div>
