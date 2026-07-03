@@ -28,18 +28,21 @@ async function fromTable(query) {
 }
 
 // ── Config ──────────────────────────────────────────────────────
+// เปลี่ยนฟังก์ชัน getConfig ใน src/lib/api.js ให้เป็นแบบนี้:
 export async function getConfig() {
   try {
     const { data } = await fromTable(supabase.from('app_config').select('key,value'))
     const map = {}
     data?.forEach(r => { map[r.key] = r.value })
+    
+    // เติมระบบป้องกัน (Fallback) ไว้ตรงนี้ต่อให้ใน Supabase จะส่งค่าอะไรมาหรือไม่มีคีย์นั้นอยู่ โค้ดก็จะไม่พัง
     return {
       pairs:        (map.pairs         || 'XAUUSD,EURUSD,GBPUSD,USDJPY,BTCUSD').split(',').map(s => s.trim()).filter(Boolean),
       setupTypes:   (map.setup_types   || 'BOS,OB,FVG,Other').split(',').map(s => s.trim()).filter(Boolean),
       behaviorTags: (map.behavior_tags || 'Planned,Revenge Trade,FOMO,Disciplined').split(',').map(s => s.trim()).filter(Boolean),
     }
   } catch {
-    // Fallback defaults so app still works offline
+    // ฟังก์ชันสำรองกรณีดึงค่าไม่สำเร็จหรือระบบ Network ล่ม
     return {
       pairs:        ['XAUUSD', 'EURUSD', 'GBPUSD', 'USDJPY', 'BTCUSD'],
       setupTypes:   ['BOS', 'OB', 'FVG', 'Liquidity Sweep', 'MSS', 'Other'],

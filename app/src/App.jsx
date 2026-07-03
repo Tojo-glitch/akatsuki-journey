@@ -111,7 +111,8 @@ export default function App() {
     pairs:        ['XAUUSD', 'EURUSD', 'GBPUSD', 'USDJPY', 'BTCUSD'],
     setupTypes:   ['BOS', 'OB', 'FVG', 'Liquidity Sweep', 'MSS', 'Other'],
     behaviorTags: ['Planned', 'Revenge Trade', 'FOMO', 'Disciplined'],
-  })
+  })// ปรับเปลี่ยนค่าเริ่มต้นใน useState ของ App.jsx ให้ปลอดภัย
+const [config, setConfig] = useState({ pairs: [], setupTypes: [], behaviorTags: [] });
   const [editData, setEditData] = useState(null)
   const [theme, setTheme] = useState(getInitialTheme)
 
