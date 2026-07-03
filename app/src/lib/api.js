@@ -27,19 +27,33 @@ async function fromTable(query) {
   }
 }
 
-// ── Config ──────────────────────────────────────────────────────
+// ── Config (เวอร์ชันปลอดภัย 100% ไร้หน้าจอขาว) ────────────────────────────────
 export async function getConfig() {
   try {
-    const { data } = await fromTable(supabase.from('app_config').select('key,value'))
+    const response = await fromTable(supabase.from('app_config').select('key,value'))
+    // ป้องกันกรณีส่งค่ากลับมาสลับรูปแบบกัน
+    const actualData = response?.data || response || []
+    
     const map = {}
-    data?.forEach(r => { map[r.key] = r.value })
-    return {
-      pairs:        (map.pairs         || 'XAUUSD,EURUSD,GBPUSD,USDJPY,BTCUSD').split(',').map(s => s.trim()).filter(Boolean),
-      setupTypes:   (map.setup_types   || 'BOS,OB,FVG,Other').split(',').map(s => s.trim()).filter(Boolean),
-      behaviorTags: (map.behavior_tags || 'Planned,Revenge Trade,FOMO,Disciplined').split(',').map(s => s.trim()).filter(Boolean),
+    if (Array.isArray(actualData)) {
+      actualData.forEach(r => { 
+        if (r && r.key) map[r.key] = r.value 
+      })
     }
-  } catch {
-    // Fallback defaults so app still works offline
+
+    // ใส่เซฟตี้ดักไว้ทุกชั้นก่อนทำ .split()
+    const rawPairs = map?.pairs || 'XAUUSD,EURUSD,GBPUSD,USDJPY,BTCUSD'
+    const rawSetups = map?.setup_types || 'BOS,OB,FVG,Other'
+    const rawTags = map?.behavior_tags || 'Planned,Revenge Trade,FOMO,Disciplined'
+
+    return {
+      pairs:        String(rawPairs).split(',').map(s => s.trim()).filter(Boolean),
+      setupTypes:   String(rawSetups).split(',').map(s => s.trim()).filter(Boolean),
+      behaviorTags: String(rawTags).split(',').map(s => s.trim()).filter(Boolean),
+    }
+  } catch (err) {
+    console.error('Config fetch failed, using fallback:', err)
+    // Fallback defaults เพื่อให้แอปทำงานต่อได้แม้ฐานข้อมูลจะว่างเปล่าหรือออฟไลน์
     return {
       pairs:        ['XAUUSD', 'EURUSD', 'GBPUSD', 'USDJPY', 'BTCUSD'],
       setupTypes:   ['BOS', 'OB', 'FVG', 'Liquidity Sweep', 'MSS', 'Other'],
