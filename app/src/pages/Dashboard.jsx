@@ -248,16 +248,18 @@ export default function Dashboard() {
       <div className="g2">
         <div className="card">
           <div className="card-header"><span className="section-title">By Pair</span></div>
-          {data.byPair.length===0 ? <Empty text="No data" /> : (
+          {/* 📅 แก้ไขส่วน By Pair */}
+          {(!data?.byPair || data.byPair.length === 0) ? <Empty text="No data" /> : (
             <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
               {data.byPair.map(p => {
-                const wr2 = parseFloat(p.win_rate)||0
-                const c = wr2>=60?GREEN:wr2>=45?YELLOW:RED
+                if (!p) return null; // เซฟตี้หากข้อมูลแถวนั้นมีปัญหา
+                const wr2 = parseFloat(p.win_rate)||0;
+                const c = wr2>=60?GREEN:wr2>=45?YELLOW:RED;
                 return (
-                  <div key={p.pair} className="pair-row">
-                    <span className="pair-name">{p.pair}</span>
+                  <div key={p.pair || Math.random()} className="pair-row">
+                    <span className="pair-name">{p.pair || '—'}</span>
                     <div className="bar-wrap"><div className="bar-fill" style={{ width:`${wr2}%`, background:c }} /></div>
-                    <span className="pair-stat">{wr2}% ({p.total})</span>
+                    <span className="pair-stat">{wr2}% ({p.total || 0})</span>
                   </div>
                 )
               })}
@@ -266,15 +268,16 @@ export default function Dashboard() {
         </div>
         <div className="card">
           <div className="card-header"><span className="section-title">By Setup</span></div>
-          {data.bySetup.length===0 ? <Empty text="No data" /> : (
+          {(!data?.bySetup || data.bySetup.length === 0) ? <Empty text="No data" /> : (
             <div style={{ overflowX:'auto' }}>
               <table style={{ width:'100%', fontSize:12 }}>
                 <thead><tr><th>Setup</th><th>Win</th><th>Loss</th><th>WR%</th></tr></thead>
                 <tbody>
-                  {data.bySetup.map(s => {
-                    const wr2 = s.total>0?Math.round(s.win/s.total*100):0
-                    return (
-                      <tr key={s.setup_type}>
+                {data.bySetup.map(s => {
+                  if (!s) return null;
+                  const wr2 = s.total>0?Math.round(s.win/s.total*100):0;
+                  return (
+                    <tr key={s.setup_type || Math.random()}>
                         <td style={{ fontFamily:'var(--mono)', fontSize:11 }}>{s.setup_type||'—'}</td>
                         <td style={{ color:GREEN }}>{s.win}</td>
                         <td style={{ color:RED }}>{s.loss}</td>
@@ -295,13 +298,15 @@ export default function Dashboard() {
           <span className="section-title">Recent Trades</span>
           <span style={{ fontSize:11, color:'var(--t2)' }}>{data.recent.length} loaded</span>
         </div>
-        {data.recent.length===0 ? <Empty text="No trades yet — add your first trade!" /> : (
+        {(!data?.recent || data.recent.length === 0) ? <Empty text="No trades yet — add your first trade!" /> : (
           <div className="table-wrap">
             <table>
               <thead><tr><th>Date</th><th>Pair</th><th>Dir</th><th>Setup</th><th>Session</th><th>R:R</th><th>Con.L</th><th>Result</th></tr></thead>
               <tbody>
-                {data.recent.slice(0,15).map(t=>(
-                  <tr key={t.id}>
+                {(data?.recent || []).slice(0, 15).map(t => {
+                  if (!t) return null;
+                  return (
+                    <tr key={t.id || Math.random()}>
                     <td className="mono dim" style={{ fontSize:11 }}>{fmtDate(t.trade_date)}</td>
                     <td style={{ fontFamily:'var(--mono)', fontWeight:700, fontSize:12 }}>{t.pair}</td>
                     <td><Badge type={t.direction}>{t.direction}</Badge></td>
@@ -311,7 +316,8 @@ export default function Dashboard() {
                     <td className="mono neg" style={{ fontSize:12 }}>{t.con_loss||''}</td>
                     <td><Badge type={t.result}>{t.result}</Badge></td>
                   </tr>
-                ))}
+                );
+                })}
               </tbody>
             </table>
           </div>
