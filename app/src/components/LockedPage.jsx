@@ -199,7 +199,7 @@ function VisitorSection({ requirePin, toast }) {
 }
 
 export default function Settings({ config, setConfig, requirePin, toast }) {
-  const [pairs,    setPairs]    = useState([...config.pairs])
+  const [pairs, setPairs] = useState([...(config?.pairs || [])])
   const [setups,   setSetups]   = useState([...config.setupTypes])
   const [btags,    setBtags]    = useState([...config.behaviorTags])
   const [newPair,  setNewPair]  = useState('')
