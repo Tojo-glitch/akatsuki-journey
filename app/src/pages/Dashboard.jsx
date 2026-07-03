@@ -38,12 +38,13 @@ export default function Dashboard() {
   )
   if (!data) return <Empty icon="⚠️" text="Failed to load. Check your Supabase connection." />
 
-  const ov = data.overall
+const ov = data?.overall || {} // ป้องกัน ov เป็น undefined
   const wr = parseFloat(ov?.win_rate) || 0
   const totalRR = parseFloat(ov?.total_rr) || 0
   const wrColor = wr>=60 ? GREEN : wr>=45 ? YELLOW : RED
 
-  const equityCurve = [...(data.recent||[])].reverse().reduce((acc,t) => {
+  // 1. เพิ่ม Optional Chaining ป้องกัน data.recent ไม่มีอยู่จริง
+  const equityCurve = [...(data?.recent || [])].reverse().reduce((acc,t) => {
     const prev = acc.length ? acc[acc.length-1].y : 0
     const delta = t.result==='Win'?(parseFloat(t.rr)||1):t.result==='Loss'?-1:0
     acc.push({ x:acc.length+1, y:+(prev+delta).toFixed(2) })
@@ -52,23 +53,22 @@ export default function Dashboard() {
 
   const sessionOrder = ['Asia','London','New York']
   const sessMap = {}
-  data.bySession.forEach(s => { sessMap[s.session] = s })
+  // 2. ป้องกัน data.bySession เป็น undefined
+  (data?.bySession || []).forEach(s => { sessMap[s.session] = s })
 
-  // Best hour range (top 3 hours by win rate)
-  const bestHours = [...hourly]
-    .filter(h => h.total >= 3)
-    .sort((a,b) => parseFloat(b.win_rate)-parseFloat(a.win_rate))
+  // 3. ป้องกัน hourly เป็น undefined หรือ null
+  const bestHours = [...(hourly || [])]
+    .filter(h => h && h.total >= 3)
+    .sort((a,b) => parseFloat(b?.win_rate || 0) - parseFloat(a?.win_rate || 0))
     .slice(0,3)
 
-  // Best & worst day of week
   const dowFull = DAYS.map((d,i) => {
-    const found = dow.find(x => x.dow === i)
+    const found = dow?.find(x => x && x.dow === i)
     return { day: d, ...( found || { total:0, win:0, loss:0, win_rate:0 }) }
   })
   const tradedDays = dowFull.filter(d => d.total > 0)
-  const bestDay  = tradedDays.sort((a,b)=>parseFloat(b.win_rate)-parseFloat(a.win_rate))[0]
-  const worstDay = tradedDays.sort((a,b)=>parseFloat(a.win_rate)-parseFloat(b.win_rate))[0]
-
+  const bestDay  = tradedDays.sort((a,b)=>parseFloat(b.win_rate)-parseFloat(a.win_rate))[0] || { day: 'N/A', win_rate: 0 };
+  const worstDay = tradedDays.sort((a,b)=>parseFloat(a.win_rate)-parseFloat(b.win_rate))[0] || { day: 'N/A', win_rate: 0 };
   return (
     <div>
       <div className="page-title">Dashboard</div>
