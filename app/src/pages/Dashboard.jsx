@@ -38,7 +38,7 @@ export default function Dashboard() {
   )
   if (!data) return <Empty icon="⚠️" text="Failed to load. Check your Supabase connection." />
 
-const ov = data?.overall || {} // ป้องกัน ov เป็น undefined
+  const ov = data?.overall || {} // ป้องกัน ov เป็น undefined
   const wr = parseFloat(ov?.win_rate) || 0
   const totalRR = parseFloat(ov?.total_rr) || 0
   const wrColor = wr>=60 ? GREEN : wr>=45 ? YELLOW : RED
@@ -51,8 +51,8 @@ const ov = data?.overall || {} // ป้องกัน ov เป็น undefine
     return acc
   }, [])
 
-  const sessionOrder = ['Asia','London','New York']
-  const sessMap = {}
+  const sessionOrder = ['Asia','London','New York'];
+  const sessMap = {};
   // 2. ป้องกัน data.bySession เป็น undefined
   (data?.bySession || []).forEach(s => { sessMap[s.session] = s })
 
