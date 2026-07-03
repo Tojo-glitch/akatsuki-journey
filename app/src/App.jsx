@@ -7,8 +7,8 @@ import { PINModal, ToastList } from './components/UI'
 import { ErrorBoundary, NetworkBanner } from './components/ErrorBoundary'
 import LockedPage from './components/LockedPage'
 import Dashboard from './pages/Dashboard'
-import AddTrade  from './pages/AddTrade'
-import History   from './pages/History'
+import AddTrade   from './pages/AddTrade'
+import History    from './pages/History'
 import Calendar  from './pages/Calendar'
 import Public    from './pages/Public'
 import Settings  from './pages/Settings'
@@ -36,7 +36,7 @@ function applyTheme(theme) {
 // ── SVG Logo ─────────────────────────────────────────────────────
 function LogoMark({ size = 28 }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 28 28" fill="none" aria-label="TradeLog">
+    <svg width={size} height={size} viewBox="0 0 28 28" fill="none" aria-label="aka">
       <rect width="28" height="28" rx="8" fill="url(#lgGrad)"/>
       <defs>
         <linearGradient id="lgGrad" x1="0" y1="0" x2="28" y2="28" gradientUnits="userSpaceOnUse">
@@ -88,7 +88,7 @@ function OwnerBadge({ isOwner, onLock, onUnlock }) {
         color: 'var(--green)', fontSize: 12, fontWeight: 600, width: '100%',
         marginBottom: 6,
       }}>
-        <span>🔓</span> Owner Mode — Lock
+        <span></span> Owner Mode — Lock
       </button>
     )
   }
@@ -100,19 +100,21 @@ function OwnerBadge({ isOwner, onLock, onUnlock }) {
       color: 'var(--t2)', fontSize: 12, fontWeight: 500, width: '100%',
       marginBottom: 6,
     }}>
-      <span>🔐</span> Enter Owner Mode
+      <span></span> Enter Owner Mode
     </button>
   )
 }
 
 export default function App() {
-const [page,   setPage]   = useState('dashboard')
-  // ใช้ค่าเริ่มต้นที่มีอาเรย์รองรับไว้เสมอ ป้องกันอาการหมุนโหลดเสี้ยววินาทีแรกแล้ว undefined
+  const [page,   setPage]   = useState('dashboard')
+  
+  // ปรับปรุงเสถียรภาพ: โครงสร้างเริ่มต้นแข็งแรง ป้องกันอาการขาวเสี้ยววินาทีแรก
   const [config, setConfig] = useState({ 
-    pairs: [], 
-    setupTypes: [], 
-    behaviorTags: [] 
+    pairs: ['XAUUSD', 'EURUSD', 'GBPUSD', 'USDJPY', 'BTCUSD'], 
+    setupTypes: ['BOS', 'OB', 'FVG', 'Liquidity Sweep', 'MSS', 'Other'], 
+    behaviorTags: ['Planned', 'Revenge Trade', 'FOMO', 'Disciplined'] 
   })
+  
   const [editData, setEditData] = useState(null)
   const [theme, setTheme] = useState(getInitialTheme)
 
@@ -124,12 +126,16 @@ const [page,   setPage]   = useState('dashboard')
   useEffect(() => { applyTheme(theme) }, [theme])
   const toggleTheme = () => setTheme(t => t === 'dark' ? 'light' : 'dark')
 
-  // Load config
+  // Load config จาก Supabase หลังเปิดเว็บ
   useEffect(() => {
-    getConfig().then(setConfig).catch(() => {})
+    getConfig()
+      .then(res => {
+        if (res) setConfig(res)
+      })
+      .catch(() => {})
   }, [])
 
-  // Track page views (Phase 3 — visitor analytics)
+  // Track page views
   useEffect(() => {
     trackPageView(page)
   }, [page])
@@ -142,16 +148,21 @@ const [page,   setPage]   = useState('dashboard')
     setPage(id)
   }, [])
 
-  // When locked page requests unlock
   const handleUnlockRequest = useCallback(() => {
-    requirePin(() => {}) // just unlock the session, page re-renders via isOwner
+    requirePin(() => {})
   }, [requirePin])
 
-  const sharedProps = { config, setConfig, requirePin, toast, isOwner }
+  // มั่นใจได้ว่าข้อมูลส่งต่อไปยัง Component ย่อยจะมีโครงสร้างอาเรย์เสมอ
+  const safeConfig = {
+    pairs: config?.pairs || [],
+    setupTypes: config?.setupTypes || [],
+    behaviorTags: config?.behaviorTags || []
+  }
+
+  const sharedProps = { config: safeConfig, setConfig, requirePin, toast, isOwner }
 
   // ── Route Guard ────────────────────────────────────────────────
   const renderPage = () => {
-    // Protected pages — show lock screen if not owner
     if (isProtectedPage(page) && !isOwner) {
       return <LockedPage page={page} onUnlock={handleUnlockRequest} />
     }
@@ -173,9 +184,19 @@ const [page,   setPage]   = useState('dashboard')
 
       {/* ── Sidebar (desktop + tablet landscape) ── */}
       <aside className="sidebar">
-        <div className="logo">
+        {/* ปรับปรุงแบรนดิ้งเป็นคำว่า aka สไตล์ มินิมอล-สถาปัตยกรรม */}
+        <div className="logo" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <LogoMark />
-          <div className="logo-name">TradeLog</div>
+          <div className="logo-name" style={{ 
+            fontSize: '21px', 
+            fontWeight: '700', 
+            letterSpacing: '-0.04em', 
+            fontFamily: 'monospace, sans-serif', 
+            color: 'var(--t1)',
+            textTransform: 'lowercase'
+          }}>
+            aka
+          </div>
         </div>
 
         <nav className="nav-section">
@@ -203,7 +224,7 @@ const [page,   setPage]   = useState('dashboard')
           <div style={{ marginTop: 8 }}>
             <div className="pair-sel-label">Quick Pair</div>
             <select className="pair-select" onChange={() => { setEditData(null); nav('add') }}>
-              {(config?.pairs || []).map(p => <option key={p}>{p}</option>)}
+              {safeConfig.pairs.map(p => <option key={p}>{p}</option>)}
             </select>
           </div>
         </div>
@@ -223,9 +244,9 @@ const [page,   setPage]   = useState('dashboard')
             className={`bnav-btn ${page === p.id ? 'active' : ''}`}
             onClick={() => nav(p.id)}>
             <span className="bnav-icon">
-              {!p.public && !isOwner ? '🔐' : p.icon}
+              {!p.public && !isOwner ? '' : p.icon}
             </span>
-            <span>{p.label}</span>
+            <span>{p.id === 'dashboard' ? 'aka' : p.label}</span>
           </button>
         ))}
       </nav>
