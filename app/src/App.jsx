@@ -106,13 +106,13 @@ function OwnerBadge({ isOwner, onLock, onUnlock }) {
 }
 
 export default function App() {
-  const [page,   setPage]   = useState('dashboard')
-  const [config, setConfig] = useState({
-    pairs:        ['XAUUSD', 'EURUSD', 'GBPUSD', 'USDJPY', 'BTCUSD'],
-    setupTypes:   ['BOS', 'OB', 'FVG', 'Liquidity Sweep', 'MSS', 'Other'],
-    behaviorTags: ['Planned', 'Revenge Trade', 'FOMO', 'Disciplined'],
-  })// ปรับเปลี่ยนค่าเริ่มต้นใน useState ของ App.jsx ให้ปลอดภัย
-const [config, setConfig] = useState({ pairs: [], setupTypes: [], behaviorTags: [] });
+const [page,   setPage]   = useState('dashboard')
+  // ใช้ค่าเริ่มต้นที่มีอาเรย์รองรับไว้เสมอ ป้องกันอาการหมุนโหลดเสี้ยววินาทีแรกแล้ว undefined
+  const [config, setConfig] = useState({ 
+    pairs: [], 
+    setupTypes: [], 
+    behaviorTags: [] 
+  })
   const [editData, setEditData] = useState(null)
   const [theme, setTheme] = useState(getInitialTheme)
 
