@@ -28,21 +28,18 @@ async function fromTable(query) {
 }
 
 // ── Config ──────────────────────────────────────────────────────
-// เปลี่ยนฟังก์ชัน getConfig ใน src/lib/api.js ให้เป็นแบบนี้:
 export async function getConfig() {
   try {
     const { data } = await fromTable(supabase.from('app_config').select('key,value'))
     const map = {}
     data?.forEach(r => { map[r.key] = r.value })
-    
-    // เติมระบบป้องกัน (Fallback) ไว้ตรงนี้ต่อให้ใน Supabase จะส่งค่าอะไรมาหรือไม่มีคีย์นั้นอยู่ โค้ดก็จะไม่พัง
     return {
       pairs:        (map.pairs         || 'XAUUSD,EURUSD,GBPUSD,USDJPY,BTCUSD').split(',').map(s => s.trim()).filter(Boolean),
       setupTypes:   (map.setup_types   || 'BOS,OB,FVG,Other').split(',').map(s => s.trim()).filter(Boolean),
       behaviorTags: (map.behavior_tags || 'Planned,Revenge Trade,FOMO,Disciplined').split(',').map(s => s.trim()).filter(Boolean),
     }
   } catch {
-    // ฟังก์ชันสำรองกรณีดึงค่าไม่สำเร็จหรือระบบ Network ล่ม
+    // Fallback defaults so app still works offline
     return {
       pairs:        ['XAUUSD', 'EURUSD', 'GBPUSD', 'USDJPY', 'BTCUSD'],
       setupTypes:   ['BOS', 'OB', 'FVG', 'Liquidity Sweep', 'MSS', 'Other'],
@@ -132,7 +129,7 @@ export async function getDashboardStats() {
     supabase.from('v_dashboard_by_setup').select('*'),
     supabase.from('v_calendar_daily').select('*').order('trade_date', { ascending: false }).limit(365),
     supabase.from('trades')
-      .select('id,trade_date,pair,direction,setup_type,session,rr,result,con_loss,image_link,video_link')
+      .select('id,trade_date,exit_date,pair,direction,setup_type,session,rr,result,con_loss,image_link,video_link,tags,notes')
       .order('trade_date', { ascending: false }).limit(300),
   ])
 
@@ -193,4 +190,26 @@ export async function getAuditLog(pin, limit = 50) {
   } catch (err) {
     return { success: false, message: err.message }
   }
+}
+
+// ── Analytics views (Phase 5) ────────────────────────────────────
+export async function getByDayOfWeek() {
+  try {
+    const { data } = await supabase.from('v_by_day_of_week').select('*')
+    return data || []
+  } catch { return [] }
+}
+
+export async function getByHour() {
+  try {
+    const { data } = await supabase.from('v_by_hour').select('*')
+    return data || []
+  } catch { return [] }
+}
+
+export async function getConLossDetail() {
+  try {
+    const { data } = await supabase.from('v_con_loss_detail').select('*')
+    return data || []
+  } catch { return [] }
 }

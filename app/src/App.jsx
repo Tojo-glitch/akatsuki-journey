@@ -7,20 +7,19 @@ import { PINModal, ToastList } from './components/UI'
 import { ErrorBoundary, NetworkBanner } from './components/ErrorBoundary'
 import LockedPage from './components/LockedPage'
 import Dashboard from './pages/Dashboard'
-import AddTrade   from './pages/AddTrade'
-import History    from './pages/History'
+import AddTrade  from './pages/AddTrade'
+import History   from './pages/History'
 import Calendar  from './pages/Calendar'
 import Public    from './pages/Public'
 import Settings  from './pages/Settings'
 
-// ── ⚙️ ปรับเปลี่ยนไอคอนเมนูตรงนี้ตามต้องการ ───────────────────────────
 const PAGES = [
   { id: 'dashboard', label: 'Dashboard', icon: '▦', public: true  },
-  { id: 'add',       label: 'Add Trade', icon: '+', public: false }, // เปลี่ยนเป็น + 
+  { id: 'add',       label: 'Add Trade', icon: '✚', public: false },
   { id: 'history',   label: 'History',   icon: '≡', public: true  },
   { id: 'calendar',  label: 'Calendar',  icon: '◫', public: true  },
   { id: 'public',    label: 'Public',    icon: '◎', public: true  },
-  { id: 'settings',  label: 'Settings',  icon: '⚙', public: false }, // เปลี่ยนเป็น ⚙
+  { id: 'settings',  label: 'Settings',  icon: '⚙', public: false },
 ]
 
 // ── Theme ────────────────────────────────────────────────────────
@@ -34,27 +33,26 @@ function applyTheme(theme) {
   localStorage.setItem('tj_theme', theme)
 }
 
-// ── 📐 ปรับเปลี่ยนดีไซน์โลโก้จาก "รูปโลก" เป็นสไตล์พิมพ์พิมล "aka Blueprint" ──────────────────
-function LogoMark() {
+// ── SVG Logo ─────────────────────────────────────────────────────
+function LogoMark({ size = 28 }) {
   return (
-    <div style={{
-      width: '32px',
-      height: '32px',
-      borderRadius: '6px',
-      background: 'var(--card2)',
-      border: '1px solid var(--border)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      fontFamily: 'monospace, sans-serif',
-      fontSize: '15px',
-      fontWeight: '800',
-      color: 'var(--green)',
-      boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
-      userSelect: 'none'
-    }}>
-      a.
-    </div>
+    <svg width={size} height={size} viewBox="0 0 28 28" fill="none" aria-label="TradeLog">
+      <rect width="28" height="28" rx="8" fill="url(#lgGrad)"/>
+      <defs>
+        <linearGradient id="lgGrad" x1="0" y1="0" x2="28" y2="28" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#26D9A0"/>
+          <stop offset="100%" stopColor="#1AB87F"/>
+        </linearGradient>
+      </defs>
+      <rect x="5"  y="17" width="4" height="6"  rx="1" fill="#082018" opacity=".9"/>
+      <rect x="12" y="13" width="4" height="10" rx="1" fill="#082018" opacity=".9"/>
+      <rect x="19" y="9"  width="4" height="14" rx="1" fill="#082018" opacity=".9"/>
+      <polyline points="7,11 14,7 21,10" stroke="#082018" strokeWidth="1.6"
+        strokeLinecap="round" strokeLinejoin="round" fill="none" opacity=".9"/>
+      <circle cx="7"  cy="11" r="1.5" fill="#082018" opacity=".9"/>
+      <circle cx="14" cy="7"  r="1.5" fill="#082018" opacity=".9"/>
+      <circle cx="21" cy="10" r="1.5" fill="#082018" opacity=".9"/>
+    </svg>
   )
 }
 
@@ -109,13 +107,11 @@ function OwnerBadge({ isOwner, onLock, onUnlock }) {
 
 export default function App() {
   const [page,   setPage]   = useState('dashboard')
-  
-  const [config, setConfig] = useState({ 
-    pairs: ['XAUUSD', 'EURUSD', 'GBPUSD', 'USDJPY', 'BTCUSD'], 
-    setupTypes: ['BOS', 'OB', 'FVG', 'Liquidity Sweep', 'MSS', 'Other'], 
-    behaviorTags: ['Planned', 'Revenge Trade', 'FOMO', 'Disciplined'] 
+  const [config, setConfig] = useState({
+    pairs:        ['XAUUSD', 'EURUSD', 'GBPUSD', 'USDJPY', 'BTCUSD'],
+    setupTypes:   ['BOS', 'OB', 'FVG', 'Liquidity Sweep', 'MSS', 'Other'],
+    behaviorTags: ['Planned', 'Revenge Trade', 'FOMO', 'Disciplined'],
   })
-  
   const [editData, setEditData] = useState(null)
   const [theme, setTheme] = useState(getInitialTheme)
 
@@ -123,17 +119,16 @@ export default function App() {
   const { pinModal, requirePin, onPinConfirmed, closeModal } = usePIN(unlock)
   const { toasts, toast } = useToast()
 
+  // Apply theme on mount and change
   useEffect(() => { applyTheme(theme) }, [theme])
   const toggleTheme = () => setTheme(t => t === 'dark' ? 'light' : 'dark')
 
+  // Load config
   useEffect(() => {
-    getConfig()
-      .then(res => {
-        if (res) setConfig(res)
-      })
-      .catch(() => {})
+    getConfig().then(setConfig).catch(() => {})
   }, [])
 
+  // Track page views (Phase 3 — visitor analytics)
   useEffect(() => {
     trackPageView(page)
   }, [page])
@@ -146,19 +141,16 @@ export default function App() {
     setPage(id)
   }, [])
 
+  // When locked page requests unlock
   const handleUnlockRequest = useCallback(() => {
-    requirePin(() => {})
+    requirePin(() => {}) // just unlock the session, page re-renders via isOwner
   }, [requirePin])
 
-  const safeConfig = {
-    pairs: config?.pairs || [],
-    setupTypes: config?.setupTypes || [],
-    behaviorTags: config?.behaviorTags || []
-  }
+  const sharedProps = { config, setConfig, requirePin, toast, isOwner }
 
-  const sharedProps = { config: safeConfig, setConfig, requirePin, toast, isOwner }
-
+  // ── Route Guard ────────────────────────────────────────────────
   const renderPage = () => {
+    // Protected pages — show lock screen if not owner
     if (isProtectedPage(page) && !isOwner) {
       return <LockedPage page={page} onUnlock={handleUnlockRequest} />
     }
@@ -167,7 +159,7 @@ export default function App() {
       case 'dashboard': return <Dashboard {...sharedProps} />
       case 'add':       return <AddTrade  {...sharedProps} editData={editData} onEditDone={handleEditDone} />
       case 'history':   return <History   {...sharedProps} onEdit={handleEdit} />
-      case 'calendar':  return <Calendar  {...sharedProps} />
+      case 'calendar':  return <Calendar  {...sharedProps} onEdit={handleEdit} />
       case 'public':    return <Public    {...sharedProps} />
       case 'settings':  return <Settings  {...sharedProps} />
       default:          return null
@@ -180,29 +172,17 @@ export default function App() {
 
       {/* ── Sidebar (desktop + tablet landscape) ── */}
       <aside className="sidebar">
-        <div className="logo" style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
+        <div className="logo">
           <LogoMark />
-          <div className="logo-name" style={{ 
-            fontSize: '22px', 
-            fontWeight: '700', 
-            letterSpacing: '-0.05em', 
-            fontFamily: 'monospace, sans-serif', 
-            color: 'var(--t1)',
-            textTransform: 'lowercase'
-          }}>
-            aka
-          </div>
+          <div className="logo-name">TradeLog</div>
         </div>
 
         <nav className="nav-section">
           {PAGES.map(p => (
             <button key={p.id}
               className={`nav-item ${page === p.id ? 'active' : ''} ${!p.public && !isOwner ? 'nav-locked' : ''}`}
-              style={{ display: 'flex', alignItems: 'center', gap: '10px' }}
               onClick={() => nav(p.id)}>
-              <span className="nav-icon" style={{ fontSize: p.icon === '+' ? '18px' : '16px', fontWeight: p.icon === '+' ? '600' : 'normal' }}>
-                {p.icon}
-              </span>
+              <span className="nav-icon">{p.icon}</span>
               {p.label}
               {!p.public && !isOwner && (
                 <span style={{ marginLeft: 'auto', fontSize: 10, opacity: .5 }}>🔐</span>
@@ -211,6 +191,7 @@ export default function App() {
           ))}
         </nav>
 
+        {/* Owner toggle + Theme + Quick pair */}
         <div className="sidebar-footer-area">
           <OwnerBadge
             isOwner={isOwner}
@@ -221,7 +202,7 @@ export default function App() {
           <div style={{ marginTop: 8 }}>
             <div className="pair-sel-label">Quick Pair</div>
             <select className="pair-select" onChange={() => { setEditData(null); nav('add') }}>
-              {safeConfig.pairs.map(p => <option key={p}>{p}</option>)}
+              {config.pairs.map(p => <option key={p}>{p}</option>)}
             </select>
           </div>
         </div>
@@ -240,14 +221,15 @@ export default function App() {
           <button key={p.id}
             className={`bnav-btn ${page === p.id ? 'active' : ''}`}
             onClick={() => nav(p.id)}>
-            <span className="bnav-icon" style={{ fontSize: p.icon === '+' ? '20px' : '16px' }}>
+            <span className="bnav-icon">
               {!p.public && !isOwner ? '🔐' : p.icon}
             </span>
-            <span>{p.id === 'dashboard' ? 'aka' : p.label}</span>
+            <span>{p.label}</span>
           </button>
         ))}
       </nav>
 
+      {/* ── Theme toggle on mobile (FAB) ── */}
       <button
         className="theme-fab"
         onClick={toggleTheme}
@@ -255,6 +237,7 @@ export default function App() {
         {theme === 'dark' ? '☀️' : '🌙'}
       </button>
 
+      {/* ── Modals ── */}
       <PINModal open={pinModal} onConfirm={onPinConfirmed} onClose={closeModal} />
       <ToastList toasts={toasts} />
     </div>
