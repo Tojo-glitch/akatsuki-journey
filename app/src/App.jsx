@@ -1,9 +1,11 @@
-import React, { useState, useEffect } from 'react'
-import { getConfig } from './lib/api'
-import { usePIN } from './hooks/usePIN'
+import React, { useState, useEffect, useCallback } from 'react'
+import { getConfig, trackPageView } from './lib/api'
+import { usePIN }  from './hooks/usePIN'
+import { useAuth, isProtectedPage } from './hooks/useAuth'
 import { useToast } from './hooks/useToast'
 import { PINModal, ToastList } from './components/UI'
 import { ErrorBoundary, NetworkBanner } from './components/ErrorBoundary'
+import LockedPage from './components/LockedPage'
 import Dashboard from './pages/Dashboard'
 import AddTrade  from './pages/AddTrade'
 import History   from './pages/History'
@@ -12,63 +14,147 @@ import Public    from './pages/Public'
 import Settings  from './pages/Settings'
 
 const PAGES = [
-  { id: 'dashboard', label: 'Dashboard', icon: '▦' },
-  { id: 'add',       label: 'Add Trade', icon: '✚' },
-  { id: 'history',   label: 'History',   icon: '≡' },
-  { id: 'calendar',  label: 'Calendar',  icon: '◫' },
-  { id: 'public',    label: 'Public',    icon: '◎' },
-  { id: 'settings',  label: 'Settings',  icon: '⚙' },
+  { id: 'dashboard', label: 'Dashboard', icon: '▦', public: true  },
+  { id: 'add',       label: 'Add Trade', icon: '✚', public: false },
+  { id: 'history',   label: 'History',   icon: '≡', public: true  },
+  { id: 'calendar',  label: 'Calendar',  icon: '◫', public: true  },
+  { id: 'public',    label: 'Public',    icon: '◎', public: true  },
+  { id: 'settings',  label: 'Settings',  icon: '⚙', public: false },
 ]
 
-// ── Logo SVG ─────────────────────────────────────────────────────
-function LogoMark() {
+// ── Theme ────────────────────────────────────────────────────────
+function getInitialTheme() {
+  return localStorage.getItem('tj_theme') ||
+    (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark')
+}
+
+function applyTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme)
+  localStorage.setItem('tj_theme', theme)
+}
+
+// ── SVG Logo ─────────────────────────────────────────────────────
+function LogoMark({ size = 28 }) {
   return (
-    <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
-      <rect width="28" height="28" rx="8" fill="url(#lg)"/>
+    <svg width={size} height={size} viewBox="0 0 28 28" fill="none" aria-label="TradeLog">
+      <rect width="28" height="28" rx="8" fill="url(#lgGrad)"/>
       <defs>
-        <linearGradient id="lg" x1="0" y1="0" x2="28" y2="28" gradientUnits="userSpaceOnUse">
+        <linearGradient id="lgGrad" x1="0" y1="0" x2="28" y2="28" gradientUnits="userSpaceOnUse">
           <stop offset="0%" stopColor="#26D9A0"/>
           <stop offset="100%" stopColor="#1AB87F"/>
         </linearGradient>
       </defs>
-      {/* Chart bars + arrow up = "trade going up" */}
-      <rect x="5"  y="16" width="4" height="7" rx="1" fill="#082018"/>
-      <rect x="12" y="12" width="4" height="11" rx="1" fill="#082018"/>
-      <rect x="19" y="8"  width="4" height="15" rx="1" fill="#082018"/>
-      <path d="M7 10 L14 6 L21 9" stroke="#082018" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-      <circle cx="7"  cy="10" r="1.5" fill="#082018"/>
-      <circle cx="14" cy="6"  r="1.5" fill="#082018"/>
-      <circle cx="21" cy="9"  r="1.5" fill="#082018"/>
+      <rect x="5"  y="17" width="4" height="6"  rx="1" fill="#082018" opacity=".9"/>
+      <rect x="12" y="13" width="4" height="10" rx="1" fill="#082018" opacity=".9"/>
+      <rect x="19" y="9"  width="4" height="14" rx="1" fill="#082018" opacity=".9"/>
+      <polyline points="7,11 14,7 21,10" stroke="#082018" strokeWidth="1.6"
+        strokeLinecap="round" strokeLinejoin="round" fill="none" opacity=".9"/>
+      <circle cx="7"  cy="11" r="1.5" fill="#082018" opacity=".9"/>
+      <circle cx="14" cy="7"  r="1.5" fill="#082018" opacity=".9"/>
+      <circle cx="21" cy="10" r="1.5" fill="#082018" opacity=".9"/>
     </svg>
   )
 }
 
+// ── Theme toggle button ───────────────────────────────────────────
+function ThemeToggle({ theme, onToggle }) {
+  return (
+    <button
+      onClick={onToggle}
+      title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+      style={{
+        background: 'var(--card2)', border: '1px solid var(--border)',
+        borderRadius: 8, padding: '7px 10px', cursor: 'pointer',
+        color: 'var(--t2)', fontSize: 16, display: 'flex',
+        alignItems: 'center', gap: 6, width: '100%',
+        transition: 'all .12s',
+      }}>
+      <span>{theme === 'dark' ? '☀️' : '🌙'}</span>
+      <span style={{ fontSize: 12, fontWeight: 500 }}>
+        {theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
+      </span>
+    </button>
+  )
+}
+
+// ── Owner badge in sidebar ────────────────────────────────────────
+function OwnerBadge({ isOwner, onLock, onUnlock }) {
+  if (isOwner) {
+    return (
+      <button onClick={onLock} style={{
+        display: 'flex', alignItems: 'center', gap: 7,
+        background: 'rgba(38,217,160,.08)', border: '1px solid rgba(38,217,160,.2)',
+        borderRadius: 8, padding: '7px 10px', cursor: 'pointer',
+        color: 'var(--green)', fontSize: 12, fontWeight: 600, width: '100%',
+        marginBottom: 6,
+      }}>
+        <span>🔓</span> Owner Mode — Lock
+      </button>
+    )
+  }
+  return (
+    <button onClick={onUnlock} style={{
+      display: 'flex', alignItems: 'center', gap: 7,
+      background: 'transparent', border: '1px solid var(--border)',
+      borderRadius: 8, padding: '7px 10px', cursor: 'pointer',
+      color: 'var(--t2)', fontSize: 12, fontWeight: 500, width: '100%',
+      marginBottom: 6,
+    }}>
+      <span>🔐</span> Enter Owner Mode
+    </button>
+  )
+}
+
 export default function App() {
-  const [page,     setPage]     = useState('dashboard')
-  const [config,   setConfig]   = useState({
+  const [page,   setPage]   = useState('dashboard')
+  const [config, setConfig] = useState({
     pairs:        ['XAUUSD', 'EURUSD', 'GBPUSD', 'USDJPY', 'BTCUSD'],
     setupTypes:   ['BOS', 'OB', 'FVG', 'Liquidity Sweep', 'MSS', 'Other'],
     behaviorTags: ['Planned', 'Revenge Trade', 'FOMO', 'Disciplined'],
   })
   const [editData, setEditData] = useState(null)
-  const [configLoaded, setConfigLoaded] = useState(false)
+  const [theme, setTheme] = useState(getInitialTheme)
 
-  const { pinModal, requirePin, onPinConfirmed, closeModal } = usePIN()
+  const { isOwner, unlock, lock } = useAuth()
+  const { pinModal, requirePin, onPinConfirmed, closeModal } = usePIN(unlock)
   const { toasts, toast } = useToast()
 
+  // Apply theme on mount and change
+  useEffect(() => { applyTheme(theme) }, [theme])
+  const toggleTheme = () => setTheme(t => t === 'dark' ? 'light' : 'dark')
+
+  // Load config
   useEffect(() => {
-    getConfig()
-      .then(cfg => { setConfig(cfg); setConfigLoaded(true) })
-      .catch(() => setConfigLoaded(true)) // use defaults on error
+    getConfig().then(setConfig).catch(() => {})
   }, [])
 
-  const handleEdit = (trade) => { setEditData(trade); setPage('add') }
-  const handleEditDone = () => { setEditData(null); setPage('history') }
-  const nav = (id) => { if (id !== 'add') setEditData(null); setPage(id) }
+  // Track page views (Phase 3 — visitor analytics)
+  useEffect(() => {
+    trackPageView(page)
+  }, [page])
 
-  const sharedProps = { config, setConfig, requirePin, toast }
+  const handleEdit     = (trade) => { setEditData(trade); setPage('add') }
+  const handleEditDone = ()      => { setEditData(null);  setPage('history') }
 
+  const nav = useCallback((id) => {
+    if (id !== 'add') setEditData(null)
+    setPage(id)
+  }, [])
+
+  // When locked page requests unlock
+  const handleUnlockRequest = useCallback(() => {
+    requirePin(() => {}) // just unlock the session, page re-renders via isOwner
+  }, [requirePin])
+
+  const sharedProps = { config, setConfig, requirePin, toast, isOwner }
+
+  // ── Route Guard ────────────────────────────────────────────────
   const renderPage = () => {
+    // Protected pages — show lock screen if not owner
+    if (isProtectedPage(page) && !isOwner) {
+      return <LockedPage page={page} onUnlock={handleUnlockRequest} />
+    }
+
     switch (page) {
       case 'dashboard': return <Dashboard {...sharedProps} />
       case 'add':       return <AddTrade  {...sharedProps} editData={editData} onEditDone={handleEditDone} />
@@ -94,30 +180,31 @@ export default function App() {
         <nav className="nav-section">
           {PAGES.map(p => (
             <button key={p.id}
-              className={`nav-item ${page === p.id ? 'active' : ''}`}
+              className={`nav-item ${page === p.id ? 'active' : ''} ${!p.public && !isOwner ? 'nav-locked' : ''}`}
               onClick={() => nav(p.id)}>
               <span className="nav-icon">{p.icon}</span>
               {p.label}
+              {!p.public && !isOwner && (
+                <span style={{ marginLeft: 'auto', fontSize: 10, opacity: .5 }}>🔐</span>
+              )}
             </button>
           ))}
         </nav>
 
-        <div className="sidebar-pair">
-          <label>Quick Pair Filter</label>
-          <select
-            style={{
-              background: 'var(--bg)', color: 'var(--text)',
-              border: '1px solid var(--border)', borderRadius: 6,
-              padding: '7px 9px', fontSize: 13, fontFamily: 'var(--mono)',
-              width: '100%', cursor: 'pointer',
-            }}
-            onChange={e => {
-              // Store selected pair context and jump to Add Trade
-              setEditData(null)
-              setPage('add')
-            }}>
-            {config.pairs.map(p => <option key={p}>{p}</option>)}
-          </select>
+        {/* Owner toggle + Theme + Quick pair */}
+        <div className="sidebar-footer-area">
+          <OwnerBadge
+            isOwner={isOwner}
+            onLock={lock}
+            onUnlock={handleUnlockRequest}
+          />
+          <ThemeToggle theme={theme} onToggle={toggleTheme} />
+          <div style={{ marginTop: 8 }}>
+            <div className="pair-sel-label">Quick Pair</div>
+            <select className="pair-select" onChange={() => { setEditData(null); nav('add') }}>
+              {config.pairs.map(p => <option key={p}>{p}</option>)}
+            </select>
+          </div>
         </div>
       </aside>
 
@@ -134,11 +221,21 @@ export default function App() {
           <button key={p.id}
             className={`bnav-btn ${page === p.id ? 'active' : ''}`}
             onClick={() => nav(p.id)}>
-            <span className="bnav-icon">{p.icon}</span>
-            {p.label}
+            <span className="bnav-icon">
+              {!p.public && !isOwner ? '🔐' : p.icon}
+            </span>
+            <span>{p.label}</span>
           </button>
         ))}
       </nav>
+
+      {/* ── Theme toggle on mobile (FAB) ── */}
+      <button
+        className="theme-fab"
+        onClick={toggleTheme}
+        title="Toggle theme">
+        {theme === 'dark' ? '☀️' : '🌙'}
+      </button>
 
       {/* ── Modals ── */}
       <PINModal open={pinModal} onConfirm={onPinConfirmed} onClose={closeModal} />

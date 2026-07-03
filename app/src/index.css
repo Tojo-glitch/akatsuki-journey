@@ -521,3 +521,133 @@ textarea { resize: none; height: 72px; }
 
 /* Lightbox close button visible on all sizes */
 .lightbox-overlay { position: relative; }
+
+/* ================================================================
+   Phase 2A + 4 — Theme, Auth, Route Guard CSS
+   ================================================================ */
+
+/* ── Light mode theme ─────────────────────────────────────────── */
+[data-theme="light"] {
+  --bg:      #F4F6FA;
+  --card:    #FFFFFF;
+  --card2:   #F0F2F7;
+  --border:  #DDE1EB;
+  --border2: #E8EBF3;
+  --green:   #0EA870;
+  --green2:  #0C9660;
+  --red:     #E8334A;
+  --yellow:  #D4960A;
+  --blue:    #2B7FE8;
+  --purple:  #7C5CC9;
+  --text:    #111827;
+  --t2:      #4B5568;
+  --t3:      #9CA3AF;
+}
+
+[data-theme="light"] body { background: var(--bg); }
+
+[data-theme="light"] input,
+[data-theme="light"] select,
+[data-theme="light"] textarea {
+  background: #FFFFFF;
+  color: var(--text);
+  border-color: var(--border);
+}
+
+[data-theme="light"] .badge-win    { background: rgba(14,168,112,.1);  color: #0A8A5C; border-color: rgba(14,168,112,.25); }
+[data-theme="light"] .badge-loss   { background: rgba(232,51,74,.1);   color: #C42040; border-color: rgba(232,51,74,.25);  }
+[data-theme="light"] .badge-miss   { background: rgba(212,150,10,.1);  color: #A67800; border-color: rgba(212,150,10,.25); }
+[data-theme="light"] .badge-buy    { background: rgba(14,168,112,.08); color: #0A8A5C; }
+[data-theme="light"] .badge-sell   { background: rgba(232,51,74,.08);  color: #C42040; }
+[data-theme="light"] .badge-asia   { background: rgba(124,92,201,.1);  color: #6544B8; }
+[data-theme="light"] .badge-london { background: rgba(43,127,232,.1);  color: #1A65CC; }
+[data-theme="light"] .badge-ny     { background: rgba(212,150,10,.1);  color: #A67800; }
+
+[data-theme="light"] .btn-primary { background: var(--green); color: #fff; }
+[data-theme="light"] .btn-primary:hover { background: var(--green2); }
+[data-theme="light"] .toast { background: #fff; }
+[data-theme="light"] .auto-calc { background: var(--card2); }
+[data-theme="light"] ::-webkit-scrollbar-thumb { background: var(--border); }
+
+/* ── Sidebar footer area ─────────────────────────────────────── */
+.sidebar-footer-area {
+  padding: 10px 10px 14px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.pair-sel-label {
+  font-size: 10px; color: var(--t3);
+  text-transform: uppercase; letter-spacing: .08em;
+  margin-bottom: 4px;
+}
+.pair-select {
+  width: 100%; background: var(--bg); color: var(--text);
+  border: 1px solid var(--border); border-radius: 6px;
+  padding: 7px 9px; font-size: 13px;
+  font-family: var(--mono); cursor: pointer;
+}
+
+/* ── Locked nav item ─────────────────────────────────────────── */
+.nav-locked { opacity: .5; }
+.nav-locked:hover { opacity: .75; }
+
+/* ── Theme FAB (floating button, mobile only) ────────────────── */
+.theme-fab {
+  display: none;
+  position: fixed;
+  bottom: calc(var(--bnav) + 12px);
+  right: 14px;
+  width: 40px; height: 40px;
+  border-radius: 50%;
+  background: var(--card);
+  border: 1px solid var(--border);
+  cursor: pointer; font-size: 18px;
+  box-shadow: 0 2px 12px rgba(0,0,0,.3);
+  z-index: 150;
+  align-items: center; justify-content: center;
+  transition: transform .12s;
+}
+.theme-fab:hover { transform: scale(1.08); }
+
+@media (max-width: 900px) {
+  .theme-fab { display: flex; }
+}
+
+/* ── Locked page hero ────────────────────────────────────────── */
+.locked-page {
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  min-height: 60vh; text-align: center; padding: 40px 24px;
+}
+
+/* ── Audit log table in Settings ─────────────────────────────── */
+.audit-action {
+  font-family: var(--mono); font-size: 11px;
+  padding: 2px 7px; border-radius: 4px;
+  background: var(--card2); color: var(--t2);
+}
+.audit-action.add    { color: var(--green); }
+.audit-action.edit   { color: var(--blue);  }
+.audit-action.delete { color: var(--red);   }
+
+/* ── Visitor stats mini cards ────────────────────────────────── */
+.vis-stat {
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: 8px; padding: 10px 14px; text-align: center;
+}
+.vis-stat-val {
+  font-family: var(--display); font-size: 26px;
+  font-weight: 700; color: var(--green); line-height: 1;
+}
+.vis-stat-lbl {
+  font-size: 10px; color: var(--t3);
+  text-transform: uppercase; letter-spacing: .07em;
+  margin-top: 4px;
+}
+
+/* ── Responsive updates for Phase 4 ─────────────────────────── */
+@media (max-width: 900px) {
+  .sidebar-footer-area { display: none; }
+}

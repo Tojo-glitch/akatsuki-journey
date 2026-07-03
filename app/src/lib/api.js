@@ -161,3 +161,33 @@ export async function saveBehaviorTags(pin, tags) {
   if (data === null) return { success: false, message: 'No response from database' }
   return data
 }
+
+// ── Visitor tracking (Phase 3 — already wired up) ───────────────
+export async function trackPageView(page) {
+  try {
+    await supabase.from('page_views').insert({
+      page,
+      referrer:   document.referrer || null,
+      user_agent: navigator.userAgent?.slice(0, 200) || null,
+    })
+  } catch { /* silent — never block the UI */ }
+}
+
+export async function getVisitorStats(pin) {
+  try {
+    const data = await rpc('get_visitor_stats', { p_pin: pin })
+    return data
+  } catch (err) {
+    return { success: false, message: err.message }
+  }
+}
+
+// ── Audit log ────────────────────────────────────────────────────
+export async function getAuditLog(pin, limit = 50) {
+  try {
+    const data = await rpc('get_audit_log', { p_pin: pin, p_limit: limit })
+    return data
+  } catch (err) {
+    return { success: false, message: err.message }
+  }
+}
