@@ -17,11 +17,12 @@ function Section({ icon, title, children }) {
 }
 
 function TagManager({ items, onRemove, inputValue, onInputChange, onAdd, placeholder, colorStyle }) {
+  const displayItems = Array.isArray(items) ? items : []
   return (
     <>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12, minHeight: 32 }}>
-        {items.length === 0 && <span style={{ fontSize: 12, color: 'var(--t3)' }}>No items yet</span>}
-        {items.map(item => (
+        {displayItems.length === 0 && <span style={{ fontSize: 12, color: 'var(--t3)' }}>No items yet</span>}
+        {displayItems.map(item => (
           <span key={item} className="stag" style={colorStyle}>
             {item}
             <span className="stag-x" onClick={() => onRemove(item)} title="Remove">✕</span>
@@ -200,17 +201,19 @@ function VisitorSection({ requirePin, toast }) {
 
 export default function Settings({ config, setConfig, requirePin, toast }) {
   const [pairs, setPairs] = useState([...(config?.pairs || [])])
-  const [setups,   setSetups]   = useState([...config?.setupTypes || []])
-  const [btags,    setBtags]    = useState([...config?.behaviorTags || []])
+  const [setups,   setSetups]   = useState([...(config?.setupTypes || [])])
+  const [btags,    setBtags]    = useState([...(config?.behaviorTags || [])])
   const [newPair,  setNewPair]  = useState('')
   const [newSetup, setNewSetup] = useState('')
   const [newBtag,  setNewBtag]  = useState('')
   const [saving,   setSaving]   = useState({})
 
   useEffect(() => {
-    setPairs([...config.pairs])
-    setSetups([...config.setupTypes])
-    setBtags([...config.behaviorTags])
+    if (config) {
+      setPairs([...(config?.pairs || [])])
+      setSetups([...(config?.setupTypes || [])])
+      setBtags([...(config?.behaviorTags || [])])
+    }
   }, [config])
 
   const setSav = (k, v) => setSaving(s => ({ ...s, [k]: v }))
@@ -227,7 +230,7 @@ export default function Settings({ config, setConfig, requirePin, toast }) {
     requirePin(async pin => {
       setSav(key, true)
       const res = await rpcFn(pin, list)
-      setSav(key, false)
+      SetSav(key, false)
       if (res?.success) { toast(`${key} saved ✓`); setConfig(c => ({ ...c, [configKey]: list })) }
       else toast(res?.message || `Error saving ${key}`, 'error')
     })
@@ -267,7 +270,7 @@ export default function Settings({ config, setConfig, requirePin, toast }) {
           Tag trades with behavioral patterns to find what affects your performance.
         </p>
         <TagManager items={btags} onRemove={v => removeItem(btags, setBtags, v)}
-          inputValue={newBtag} onInputChange={setNewBtag}
+          inputValue={newBtag} onInputChange={newBtag => setNewBtag(newBtag)}
           onAdd={() => addItem(btags, setBtags, newBtag, setNewBtag)} placeholder="e.g. Impulsive Entry"
           colorStyle={{ borderColor: 'rgba(157,127,232,.3)', color: 'var(--purple)' }} />
         <button className="btn-primary" style={{ marginTop: 12 }} disabled={saving.btags}
@@ -287,9 +290,9 @@ export default function Settings({ config, setConfig, requirePin, toast }) {
           {[
             ['Version', 'v3.0.0'], ['Database', 'Supabase (Postgres)'],
             ['Hosting', 'Cloudflare Pages'], ['PIN Security', 'bcrypt hashed'],
-            ['PIN Session', '15 min'], ['Pairs', config.pairs.length + ' configured'],
-            ['Setup Types', config.setupTypes.length + ' configured'],
-            ['Behavior Tags', config.behaviorTags.length + ' configured'],
+            ['PIN Session', '15 min'], ['Pairs', (config?.pairs?.length || 0) + ' configured'],
+            ['Setup Types', (config?.setupTypes?.length || 0) + ' configured'],
+            ['Behavior Tags', (config?.behaviorTags?.length || 0) + ' configured'],
           ].map(([k, v]) => (
             <div key={k} style={{ background: 'var(--bg)', borderRadius: 8, padding: '10px 12px', border: '1px solid var(--border)' }}>
               <div style={{ fontSize: 10, color: 'var(--t3)', textTransform: 'uppercase', letterSpacing: '.07em', marginBottom: 3 }}>{k}</div>
