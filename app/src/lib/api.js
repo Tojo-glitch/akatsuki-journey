@@ -27,33 +27,19 @@ async function fromTable(query) {
   }
 }
 
-// ── Config (เวอร์ชันปลอดภัย 100% ไร้หน้าจอขาว) ────────────────────────────────
+// ── Config ──────────────────────────────────────────────────────
 export async function getConfig() {
   try {
-    const response = await fromTable(supabase.from('app_config').select('key,value'))
-    // ป้องกันกรณีส่งค่ากลับมาสลับรูปแบบกัน
-    const actualData = response?.data || response || []
-    
+    const { data } = await fromTable(supabase.from('app_config').select('key,value'))
     const map = {}
-    if (Array.isArray(actualData)) {
-      actualData.forEach(r => { 
-        if (r && r.key) map[r.key] = r.value 
-      })
-    }
-
-    // ใส่เซฟตี้ดักไว้ทุกชั้นก่อนทำ .split()
-    const rawPairs = map?.pairs || 'XAUUSD,EURUSD,GBPUSD,USDJPY,BTCUSD'
-    const rawSetups = map?.setup_types || 'BOS,OB,FVG,Other'
-    const rawTags = map?.behavior_tags || 'Planned,Revenge Trade,FOMO,Disciplined'
-
+    data?.forEach(r => { map[r.key] = r.value })
     return {
-      pairs:        String(rawPairs).split(',').map(s => s.trim()).filter(Boolean),
-      setupTypes:   String(rawSetups).split(',').map(s => s.trim()).filter(Boolean),
-      behaviorTags: String(rawTags).split(',').map(s => s.trim()).filter(Boolean),
+      pairs:        (map.pairs         || 'XAUUSD,EURUSD,GBPUSD,USDJPY,BTCUSD').split(',').map(s => s.trim()).filter(Boolean),
+      setupTypes:   (map.setup_types   || 'BOS,OB,FVG,Other').split(',').map(s => s.trim()).filter(Boolean),
+      behaviorTags: (map.behavior_tags || 'Planned,Revenge Trade,FOMO,Disciplined').split(',').map(s => s.trim()).filter(Boolean),
     }
-  } catch (err) {
-    console.error('Config fetch failed, using fallback:', err)
-    // Fallback defaults เพื่อให้แอปทำงานต่อได้แม้ฐานข้อมูลจะว่างเปล่าหรือออฟไลน์
+  } catch {
+    // Fallback defaults so app still works offline
     return {
       pairs:        ['XAUUSD', 'EURUSD', 'GBPUSD', 'USDJPY', 'BTCUSD'],
       setupTypes:   ['BOS', 'OB', 'FVG', 'Liquidity Sweep', 'MSS', 'Other'],
@@ -224,6 +210,58 @@ export async function getByHour() {
 export async function getConLossDetail() {
   try {
     const { data } = await supabase.from('v_con_loss_detail').select('*')
+    return data || []
+  } catch { return [] }
+}
+
+// ── Phase 5: Import / Export / Delete by pair ────────────────────
+export async function importTradesBatch(pin, rows) {
+  try {
+    const data = await rpc('import_trades_batch', { p_pin: pin, p_rows: rows })
+    if (data === null) return { success: false, message: 'No response from database' }
+    return data
+  } catch (err) {
+    return { success: false, message: err.message }
+  }
+}
+
+export async function deleteTradesByPair(pin, pair) {
+  try {
+    const data = await rpc('delete_trades_by_pair', { p_pin: pin, p_pair: pair })
+    if (data === null) return { success: false, message: 'No response from database' }
+    return data
+  } catch (err) {
+    return { success: false, message: err.message }
+  }
+}
+
+export async function exportAllTrades(pin) {
+  try {
+    const data = await rpc('export_all_trades', { p_pin: pin })
+    if (data === null) return { success: false, message: 'No response from database' }
+    return data
+  } catch (err) {
+    return { success: false, message: err.message }
+  }
+}
+
+// ── Phase 7: Drawdown + Tag analysis ────────────────────────────
+export async function getEquityDrawdown() {
+  try {
+    const { data } = await supabase
+      .from('v_equity_drawdown')
+      .select('x,trade_date,pair,result,equity,drawdown,peak')
+      .order('x', { ascending: true })
+    return data || []
+  } catch { return [] }
+}
+
+export async function getTagAnalysis() {
+  try {
+    const { data } = await supabase
+      .from('v_tag_analysis')
+      .select('*')
+      .order('total', { ascending: false })
     return data || []
   } catch { return [] }
 }

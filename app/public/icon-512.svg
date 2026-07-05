@@ -1,0 +1,19 @@
+
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 192 192">
+  <rect width="192" height="192" rx="40" fill="#0B0E14"/>
+  <rect width="192" height="192" rx="40" fill="url(#g)"/>
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="192" y2="192" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#26D9A0"/>
+      <stop offset="100%" stop-color="#1AB87F"/>
+    </linearGradient>
+  </defs>
+  <rect x="34" y="116" width="28" height="42" rx="6" fill="#082018" opacity="0.9"/>
+  <rect x="82" y="88" width="28" height="70" rx="6" fill="#082018" opacity="0.9"/>
+  <rect x="130" y="60" width="28" height="98" rx="6" fill="#082018" opacity="0.9"/>
+  <polyline points="48,76 96,48 144,68" stroke="#082018" stroke-width="10"
+    stroke-linecap="round" stroke-linejoin="round" fill="none" opacity="0.9"/>
+  <circle cx="48"  cy="76" r="10" fill="#082018" opacity="0.9"/>
+  <circle cx="96"  cy="48" r="10" fill="#082018" opacity="0.9"/>
+  <circle cx="144" cy="68" r="10" fill="#082018" opacity="0.9"/>
+</svg>

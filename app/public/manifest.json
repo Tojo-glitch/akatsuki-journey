@@ -1,0 +1,29 @@
+{
+  "name": "TradeLog — Trade Journal",
+  "short_name": "TradeLog",
+  "description": "Personal trade journal for tracking and analyzing forex/crypto performance",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0B0E14",
+  "theme_color": "#26D9A0",
+  "orientation": "any",
+  "icons": [
+    { "src": "/icon-192.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/icon-512.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ],
+  "categories": ["finance", "productivity"],
+  "shortcuts": [
+    {
+      "name": "Add Trade",
+      "short_name": "Add",
+      "url": "/?page=add",
+      "icons": [{ "src": "/icon-192.svg", "sizes": "any" }]
+    },
+    {
+      "name": "Dashboard",
+      "short_name": "Stats",
+      "url": "/",
+      "icons": [{ "src": "/icon-192.svg", "sizes": "any" }]
+    }
+  ]
+}
