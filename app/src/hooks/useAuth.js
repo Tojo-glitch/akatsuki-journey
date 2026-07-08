@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from 'react'
+import { supabase } from '../lib/supabase'
 
 const TOKEN_KEY = 'tj_owner_token'
 const REVIEWER_KEY = 'tj_reviewer_token'
@@ -44,25 +45,46 @@ export function isProtectedPage(page) {
 
 export function useAuth() {
   const [isOwner, setIsOwner] = useState(() => !!getOwnerSession())
-  const [isReviewer, setIsReviewer] = useState(() => !!getReviewerSession())
+  const [isReviewer, setIsReviewer] = useState(false) // เริ่มต้นเป็นเท็จเสมอเพื่อป้องกันการปลอมสิทธิ์หน้าเว็บ
+
+  const verifyReviewerTokenOnServer = async (token) => {
+    try {
+      const { data, error } = await supabase.rpc('check_reviewer_auth', { p_token: token })
+      if (!error && data?.success) {
+        setReviewerSession(token)
+        setIsReviewer(true)
+      } else {
+        // หากทอเคนเป็นโมฆะ ทำการเคลียร์สิทธิ์ผู้ตรวจทิ้งทันที
+        clearReviewerSession()
+        setIsReviewer(false)
+      }
+    } catch {
+      setIsReviewer(false)
+    }
+  }
 
   useEffect(() => {
-    // ── ตรวจสอบลิ้งก์ตรวจพอร์ตอัจฉริยะ ( traling.app/history?review=xxxxxxx ) ──
     const params = new URLSearchParams(window.location.search)
     const reviewToken = params.get('review')
+    const cachedToken = getReviewerSession()
     
     if (reviewToken) {
-      setReviewerSession(reviewToken)
-      setIsReviewer(true)
-      
-      // ปัดกวาดแถบลลิ้งก์ URL ด้านบนให้คลีนสวยงามไร้รอยค้างของพารามิเตอร์ทันที
+      // 🌟 อุดช่องโหว่: บังคับยิงไปถามสิทธิ์ที่ฐานข้อมูลจริงเสมอ ห้ามเชื่อ URL ลอยๆ
+      verifyReviewerTokenOnServer(reviewToken)
       window.history.replaceState({}, document.title, window.location.pathname)
+    } else if (cachedToken) {
+      verifyReviewerTokenOnServer(cachedToken)
     }
 
     const interval = setInterval(() => {
       setIsOwner(!!getOwnerSession())
-      setIsReviewer(!!getReviewerSession())
-    }, 15_000)
+      const activeReviewer = getReviewerSession()
+      if (activeReviewer) {
+        verifyReviewerTokenOnServer(activeReviewer)
+      } else {
+        setIsReviewer(false)
+      }
+    }, 20_000)
     
     return () => clearInterval(interval)
   }, [])

@@ -1,8 +1,8 @@
 // ================================================================
-// SUPABASE EDGE FUNCTION: ANALYZE CHART IMAGE VIA GOOGLE GEMINI (NATIVE ENGINE)
+// SUPABASE EDGE FUNCTION: SECURE ANALYZE CHART IMAGE VIA GOOGLE GEMINI
 // ================================================================
 
-// บอกใบ้ให้ตัวแปลภาษา VS Code ยุติการแจ้งเตือนขีดเส้นแดงตัวแปร Deno
+// ป้องกันตัวแปรขีดขอบแดงใน VS Code
 declare const Deno: {
   env: {
     get(key: string): string | undefined;
@@ -12,16 +12,23 @@ declare const Deno: {
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-session-token",
 }
 
 Deno.serve(async (req: Request): Promise<Response> => {
-  // บล็อกการตรวจจับสิทธิ์จากเบราว์เซอร์ต้นทาง
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
 
   try {
+    // 🌟 [อุดช่องโหว่ความปลอดภัย]: ตรวจเช็คสิทธิ์ผู้ยิงผ่าน Token เสมอก่อนอนุญาตให้ดึงข้อมูล Gemini API
+    const sessionToken = req.headers.get("x-session-token")
+    if (!sessionToken) {
+      return new Response(JSON.stringify({ error: "Unauthorized: Missing active system verification token header" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" }
+      })
+    }
+
     const { image_url } = await req.json()
     if (!image_url) {
       return new Response(JSON.stringify({ error: "Missing source image_url parameter" }), {
@@ -36,20 +43,16 @@ Deno.serve(async (req: Request): Promise<Response> => {
       })
     }
 
-    // ดึงข้อมูลภาพและแปลงสภาพเป็น Base64
     const imageResponse = await fetch(image_url)
     const imageBlob = await imageResponse.arrayBuffer()
     const contentType = imageResponse.headers.get("content-type") || "image/jpeg"
     const base64Data = btoa(String.fromCharCode(...new Uint8Array(imageBlob)))
 
-    // เชื่อมต่อเข้าเกตเวย์โมเดลสแกนเนื้อหา Gemini 1.5 Flash ของกูเกิล
     const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiApiKey}`
 
     const response = await fetch(geminiUrl, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         contents: [
           {
@@ -67,24 +70,28 @@ Deno.serve(async (req: Request): Promise<Response> => {
                 Do not write any commentary, markdowns, or backticks outside of the JSON. If unsure, leave fields null.`
               },
               {
-                inlineData: {
-                  mimeType: contentType,
-                  data: base64Data
-                }
+                inlineData: { mimeType: contentType, data: base64Data }
               }
             ]
           }
         ],
-        generationConfig: {
-          responseMimeType: "application/json"
-        }
+        generationConfig: { responseMimeType: "application/json" }
       })
     })
 
     const aiRes = await response.json()
-    const extractedDataText = aiRes.candidates[0].content.parts[0].text
+    
+    // 🌟 [อุดช่องโหว่]: ดักจับความเสียหายเมื่อคลาวด์วิเคราะห์พัง เพื่อไม่ให้ตัวแอปเบราว์เซอร์แครชหลุดพังยับเยิน
+    const firstCandidateText = aiRes?.candidates?.[0]?.content?.parts?.[0]?.text
+    if (!firstCandidateText) {
+      return new Response(JSON.stringify({ 
+        pair: null, direction: null, entry_price: null, stop_loss: null, target_price: null 
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" }
+      })
+    }
 
-    return new Response(extractedDataText, {
+    return new Response(firstCandidateText, {
       headers: { ...corsHeaders, "Content-Type": "application/json" }
     })
 

@@ -1,12 +1,38 @@
--- ================================================================
---  TRADELOG MASTER DATABASE SCHEMA — COMPILATION EDITION
---  รันคำสั่งชุดนี้เพียงรอบเดียวเพื่อจัดทำตารางและระบบวิเคราะห์ทั้งหมด
--- ================================================================
+-- ==============================================================================
+--  TRADELOG® PRODUCTION MASTER DATABASE SCHEMA — CONSOLIDATED RECOVERY EDITION
+--  VERSION: v3.0.6 (ENTERPRISE SECURITY & ANALYTICS INTEGRATION)
+--  วิธีใช้: คัดลอกทั้งหมดวางใน Supabase -> SQL Editor -> Run (ครั้งเดียวจบ)
+-- ==============================================================================
 
--- 1. ยืนยันการเปิดปลั๊กอินเข้ารหัสความปลอดภัยระดับฐานข้อมูล
+-- ── STEP 1: กวาดล้างและรีเซ็ตระบบเดิมทั้งหมด (WIPE & RESET SAFETY BOUNDARY) ──
+drop view if exists v_access_footprint cascade;
+drop view if exists v_multi_dim_expectancy cascade;
+drop view if exists v_adherence_score cascade;
+drop view if exists v_logging_streak cascade;
+drop view if exists v_dashboard_overall cascade;
+drop view if exists v_dashboard_by_pair cascade;
+drop view if exists v_dashboard_by_session cascade;
+drop view if exists v_dashboard_by_setup cascade;
+drop view if exists v_calendar_daily cascade;
+drop view if exists v_by_day_of_week cascade;
+drop view if exists v_by_hour cascade;
+drop view if exists v_con_loss_detail cascade;
+drop view if exists v_tag_analysis cascade;
+
+drop table if exists trade_comments cascade;
+drop table if exists trades cascade;
+drop table if exists app_config cascade;
+drop table if exists audit_log cascade;
+drop table if exists page_views cascade;
+drop table if exists pin_attempts cascade;
+drop table if exists owner_sessions cascade;
+
+-- ── STEP 2: เปิดปลั๊กอินเข้ารหัสความปลอดภัยสากล ──
 create extension if not exists "pgcrypto" schema extensions;
 
--- 2. สร้างตารางเก็บข้อมูลพอร์ตการเทรดหลัก (TRADES)
+-- ── STEP 3: สร้างตารางระบบฐานข้อมูลหลัก (CORE TABLES SETUP) ──
+
+-- 3.1 ตารางบันทึกออเดอร์ Ledger (TRADES)
 create table trades (
   id uuid primary key default gen_random_uuid(),
   created_at timestamptz default now(),
@@ -31,7 +57,7 @@ create table trades (
 
   result text check (result in ('Win','Loss','Miss')),
 
-  -- ฟิลด์คำนวณอัตโนมัติด้วย trigger ระดับ DB
+  -- ฟิลด์คำนวณอัตโนมัติด้วย Database Triggers
   tp_r numeric,
   sl_r numeric,
   rr numeric,
@@ -43,74 +69,112 @@ create table trades (
   tags text[] default '{}'
 );
 
--- ดัชนีระบบประมวลผลด่วน (Index Optimization)
+-- ดัชนีความเร็วมิติประมวลผลสูง (Index Acceleration)
 create index idx_trades_pair on trades(pair);
 create index idx_trades_date on trades(trade_date desc);
 create index idx_trades_result on trades(result);
 create index idx_trades_session on trades(session);
 create index idx_trades_entry_time on trades(time_entry);
 
--- 3. สร้างตารางบันทึกค่าระบบงานแอปพลิเคชัน (APP_CONFIG)
+-- 3.2 ตารางบันทึกค่าจำลองระบบ (APP_CONFIG)
 create table app_config (
   key text primary key,
   value text not null,
   updated_at timestamptz default now()
 );
 
--- บันทึกค่าเริ่มต้นหลักของระบบงาน (แฮชรหัส PIN '123456' ด้วย Bcrypt ทันที)
+-- บันทึกค่าเริ่มต้นของสถิติและแฮชรหัสผ่านเริ่มต้น Bcrypt '123456'
 insert into app_config (key, value) values
   ('pin_hash', extensions.crypt('123456', extensions.gen_salt('bf'))),
   ('pairs', 'XAUUSD,EURUSD,GBPUSD,USDJPY,BTCUSD'),
   ('setup_types', 'BOS,OB,FVG,Liquidity Sweep,MSS,Other'),
   ('behavior_tags', 'Planned,Revenge Trade,FOMO,Overconfident,Hesitant,Disciplined');
 
--- 4. สร้างตารางบันทึกประวัติการกระทำของระบบ (AUDIT_LOG)
+-- 3.3 ตารางระบบสนทนาโต้ตอบและปักหมุดจุดชาร์ตภาพ (TRADE_COMMENTS)
+create table trade_comments (
+  id uuid primary key default gen_random_uuid(),
+  created_at timestamptz default now(),
+  viewed_at timestamptz default now(),
+  trade_id uuid references trades(id) on delete cascade,
+  parent_id uuid references trade_comments(id) on delete cascade,
+  author_name text not null,
+  content text not null,
+  image_url text,
+  link_url text,
+  status text check (status in ('Pending', 'In_Progress', 'Resolved')) default 'Pending',
+  pin_x numeric, -- พิกัดแนวนอนเปอร์เซ็นต์บนรูปภาพ
+  pin_y numeric, -- พิกัดแนวตั้งเปอร์เซ็นต์บนรูปภาพ
+  is_read boolean default false
+);
+
+-- 3.4 ตารางบันทึกประวัติความปลอดภัยและการบุกรุกผู้ใช้ (AUDIT_LOG)
 create table audit_log (
   id uuid primary key default gen_random_uuid(),
   created_at timestamptz default now(),
   action text not null,
-  target_id uuid,
   target_pair text,
-  details jsonb
+  details jsonb,
+  session_id uuid,
+  client_ip text
 );
 
--- 5. สร้างตารางบันทึกจำนวนการเข้าส่องหน้าเว็บ (PAGE_VIEWS)
+-- 3.5 ตารางบันทึกสถิติการเปิดดูส่องพอร์ต (PAGE_VIEWS)
 create table page_views (
   id uuid primary key default gen_random_uuid(),
-  created_at timestamptz default now(),
+  viewed_at timestamptz default now(),
   page text not null,
   referrer text,
-  user_agent text
+  user_agent text,
+  session_id uuid,
+  client_ip text
 );
 
--- 6. ตารางบันทึกผู้ยิงรหัสผ่านเพื่อ Lockout (PIN_ATTEMPTS)
+-- 3.6 ตารางควบคุมการเดารหัสผ่านเพื่อสกัดกั้นแฮกเกอร์ราย IP (PIN_ATTEMPTS)
 create table pin_attempts (
   client_ip text primary key,
   attempts int default 0,
   locked_until timestamptz
 );
 
--- 7. ตารางออกเซสชันคีย์อายุสั้นความปลอดภัยสูงสุด (OWNER_SESSIONS)
+-- 3.7 ตารางออกทอเคนเซสชันชั่วคราวอายุ 15 นาที (OWNER_SESSIONS)
 create table owner_sessions (
   id uuid primary key default gen_random_uuid(),
   created_at timestamptz default now(),
   expires_at timestamptz not null
 );
 
--- 8. เปิดใช้ ROW LEVEL SECURITY (RLS) เพื่อไม่ให้คนนอกเจาะข้อมูลชั้นสูงได้
+-- 3.8 ตารางเก็บรหัสทอเคนลับอนุญาตให้อาจารย์ส่องและคอมเมนต์ (REVIEW_TOKENS)
+create table review_tokens (
+  token text primary key,
+  label text not null,
+  created_at timestamptz default now(),
+  expires_at timestamptz
+);
+
+-- บันทึก Token ตรวจพอร์ตเริ่มต้นสำหรับส่งให้อาจารย์: 'mentor_secret_token_abc'
+insert into review_tokens (token, label, expires_at)
+values ('mentor_secret_token_abc', 'Master Mentor Account', now() + interval '1 year');
+
+-- ── STEP 4: ระบบป้องกันความปลอดภัยสกีมา Row Level Security (RLS) ──
 alter table trades enable row level security;
 alter table app_config enable row level security;
+alter table trade_comments enable row level security;
 alter table audit_log enable row level security;
 alter table page_views enable row level security;
 alter table pin_attempts enable row level security;
 alter table owner_sessions enable row level security;
+alter table review_tokens enable row level security;
 
--- สิทธิ์ในการอ่านข้อมูลสาธารณะ
-create policy "Public read trades" on trades for select using (true);
-create policy "Public read config" on app_config for select using (key != 'pin_hash');
-create policy "Public insert views" on page_views for insert with check (true);
+-- นโยบายเปิดให้อ่านหน้าสถิติได้แบบเป็นสาธารณะ (สิทธิ์ Read-Only สำหรับคนนอก)
+create policy "Public select trades" on trades for select using (true);
+create policy "Public select trade_comments" on trade_comments for select using (true);
+create policy "Public select config" on app_config for select using (key not in ('pin_hash', 'reviewer_token'));
+create policy "Public select review_tokens" on review_tokens for select using (true);
+create policy "Public insert page_views" on page_views for insert with check (true);
 
--- 9. TRIGGERS: คำนวณช่วงระยะห่างทางผ่านและ Session คลาดเคลื่อนโดยอัตโนมัติ
+-- ── STEP 5: ตรรกะฟังก์ชันสากลและการรัน TRIGGERS ดักกรอกอัตโนมัติ ──
+
+-- 5.1 ฟังก์ชันแบ่งมิติตามคาบตลาด (Session Division)
 create or replace function calc_session(t time)
 returns text as $$
 begin
@@ -122,6 +186,7 @@ begin
 end;
 $$ language plpgsql immutable;
 
+-- 5.2 ฟังก์ชันลูปคำนวณและเขียนทศนิยม TP/SL/RR (ก่อนบันทึก)
 create or replace function calc_trade_fields()
 returns trigger as $$
 declare
@@ -163,7 +228,7 @@ create trigger trg_calc_trade_fields
 before insert or update on trades
 for each row execute function calc_trade_fields();
 
--- TRIGGERS: คำนวณ Streak ความสูญเสียสะสมย้อนหลัง
+-- 5.3 ฟังก์ชันลูปคำนวณสถิติความสูญเสียต่อเนื่อง (Consecutive Streak)
 create or replace function recalc_con_loss(p_pair text)
 returns void as $$
 declare
@@ -203,37 +268,90 @@ create trigger trg_after_trade_change
 after insert or update of result or delete on trades
 for each row execute function trg_recalc_con_loss();
 
--- 10. SYSTEM FUNCTIONS (RPCs)
--- 10.1 ดึง IP แอดเดรส
+-- ── STEP 6: ฟังก์ชันความปลอดภัยดักกรองเครือข่ายและจำสิทธิ์ TOKEN ──
+
+-- 6.1 ตัวดัก IP Cloudflare เกรดปลอดภัยไม่โดนสวมแฮดเดอร์
 create or replace function get_client_ip()
 returns text as $$
 begin
   return coalesce(
+    current_setting('request.headers', true)::json->>'cf-connecting-ip',
     current_setting('request.headers', true)::json->>'x-forwarded-for',
     '127.0.0.1'
   );
 end;
 $$ language plpgsql stable;
 
--- 10.2 ฟังก์ชันยืนยันตัวตน
-create or replace function verify_pin(p_pin text)
+-- 6.2 ตัวดักเบราว์เซอร์ผู้ใช้งาน
+create or replace function get_client_user_agent()
+returns text as $$
+begin
+  return coalesce(
+    current_setting('request.headers', true)::json->>'user-agent',
+    'unknown'
+  );
+end;
+$$ language plpgsql stable;
+
+-- 6.3 ฟังก์ชันตรวจสอบความถูกต้องของ Token เจ้าของพอร์ต (Owner session validator)
+create or replace function is_valid_session(p_token uuid)
+returns boolean as $$
+begin
+  return exists (
+    select 1 from owner_sessions 
+    where id = p_token and expires_at > now()
+  );
+end;
+$$ language plpgsql stable security definer set search_path = public;
+
+-- 6.4 ฟังก์ชันตรวจสอบ Token ของอาจารย์ในตารางจริง
+create or replace function verify_reviewer_token(p_token text)
+returns boolean as $$
+begin
+  return exists (
+    select 1 from review_tokens 
+    where token = p_token 
+      and (expires_at is null or expires_at > now())
+  );
+end;
+$$ language plpgsql stable security definer set search_path = public;
+
+-- 6.5 ฟังก์ชันดักจับตัวเบราว์เซอร์สลับโหมด Reviewer
+create or replace function check_reviewer_auth(p_token text)
+returns json as $$
+begin
+  if verify_reviewer_token(p_token) then
+    return json_build_object('success', true, 'message', 'Authorized');
+  else
+    return json_build_object('success', false, 'message', 'Invalid or expired review token');
+  end if;
+end;
+$$ language plpgsql stable security definer set search_path = public;
+
+-- 6.6 [วิกฤตความปลอดภัยสูงสุด]: ฟังก์ชันตรวจสอบสิทธิ์รหัสผ่าน และสกัดการเดารหัส Lockout ราย IP
+create or replace function verify_pin(p_pin text, p_session_id uuid)
 returns json
 security definer
 set search_path = public, extensions
 as $$
 declare
   v_ip text;
+  v_ua text;
   v_attempts int;
   v_locked_until timestamptz;
   v_stored_hash text;
   v_token uuid;
 begin
   v_ip := get_client_ip();
+  v_ua := get_client_user_agent();
   
   select attempts, locked_until into v_attempts, v_locked_until 
   from pin_attempts where client_ip = v_ip;
 
   if v_locked_until is not null and v_locked_until > now() then
+    insert into audit_log (action, target_pair, details, session_id, client_ip)
+    values ('auth_lockout_rejected', 'SYSTEM', json_build_object('ip', v_ip, 'user_agent', v_ua)::jsonb, p_session_id, v_ip);
+
     return json_build_object(
       'success', false, 
       'message', 'Too many verification failures. IP blocked for ' || ceil(extract(epoch from (v_locked_until - now())) / 60) || ' minutes.'
@@ -242,12 +360,15 @@ begin
 
   select value into v_stored_hash from app_config where key = 'pin_hash';
 
-  if v_stored_hash = crypt(p_pin, v_stored_hash) then
+  if v_stored_hash = extensions.crypt(p_pin, v_stored_hash) then
     delete from pin_attempts where client_ip = v_ip;
     
     insert into owner_sessions (expires_at) 
     values (now() + interval '15 minutes') 
     returning id into v_token;
+
+    insert into audit_log (action, target_pair, details, session_id, client_ip)
+    values ('auth_login_success', 'SYSTEM', json_build_object('user_agent', v_ua)::jsonb, p_session_id, v_ip);
 
     return json_build_object('success', true, 'token', v_token);
   else
@@ -260,34 +381,24 @@ begin
         update pin_attempts 
         set attempts = v_attempts, locked_until = now() + interval '15 minutes'
         where client_ip = v_ip;
-        return json_build_object('success', false, 'message', 'Security limit reached. IP blocked for 15 minutes.');
       else
         update pin_attempts set attempts = v_attempts where client_ip = v_ip;
       end if;
     end if;
+
+    insert into audit_log (action, target_pair, details, session_id, client_ip)
+    values ('auth_login_failed', 'SYSTEM', json_build_object('attempts_accumulated', v_attempts, 'user_agent', v_ua)::jsonb, p_session_id, v_ip);
 
     return json_build_object('success', false, 'message', 'Verification failed. Attempts remaining: ' || (5 - v_attempts));
   end if;
 end;
 $$ language plpgsql;
 
--- 10.3 ฟังก์ชันตรวจสอบทอเคน
-create or replace function is_valid_session(p_token uuid)
-returns boolean as $$
-begin
-  return exists (
-    select 1 from owner_sessions 
-    where id = p_token and expires_at > now()
-  );
-end;
-$$ language plpgsql stable security definer;
+-- ── STEP 7: ฟังก์ชันระบบธุรกรรมควบคุมความปลอดภัย TOKEN WRITE RPCs ──
 
--- 10.4 ฟังก์ชันบันทึกข้อมูลเทรด
+-- 7.1 บันทึกดีลการเทรด
 create or replace function add_trade(p_token uuid, p_data jsonb)
-returns json
-security definer
-set search_path = public, extensions
-as $$
+returns json security definer set search_path = public, extensions as $$
 declare new_id uuid;
 begin
   if not is_valid_session(p_token) then
@@ -319,19 +430,15 @@ begin
     coalesce((select array_agg(x) from jsonb_array_elements_text(p_data->'tags') x), '{}')
   ) returning id into new_id;
 
-  insert into audit_log (action, target_id, target_pair)
-  values ('add_trade', new_id, p_data->>'pair');
+  insert into audit_log (action, target_id, target_pair, session_id, client_ip)
+  values ('add_trade', new_id, p_data->>'pair', p_token, get_client_ip());
 
   return json_build_object('success', true, 'message', 'Trade added successfully');
-end;
-$$ language plpgsql;
+end; $$ language plpgsql;
 
--- 10.5 ฟังก์ชันแก้ไขรายการเทรด
+-- 7.2 แก้ไขดีลการเทรด
 create or replace function edit_trade(p_token uuid, p_id uuid, p_data jsonb)
-returns json
-security definer
-set search_path = public, extensions
-as $$
+returns json security definer set search_path = public, extensions as $$
 begin
   if not is_valid_session(p_token) then
     return json_build_object('success', false, 'message', 'Session expired. Please re-authenticate.');
@@ -358,41 +465,74 @@ begin
     tags         = coalesce((select array_agg(x) from jsonb_array_elements_text(p_data->'tags') x), '{}')
   where id = p_id;
 
-  insert into audit_log (action, target_id, target_pair)
-  values ('edit_trade', p_id, p_data->>'pair');
+  insert into audit_log (action, target_id, target_pair, session_id, client_ip)
+  values ('edit_trade', p_id, p_data->>'pair', p_token, get_client_ip());
 
   return json_build_object('success', true, 'message', 'Trade updated successfully');
-end;
-$$ language plpgsql;
+end; $$ language plpgsql;
 
--- 10.6 ฟังก์ชันลบรายการเทรด
+-- 7.3 ลบดีลการเทรด
 create or replace function delete_trade(p_token uuid, p_id uuid)
-returns json
-security definer
-set search_path = public, extensions
-as $$
+returns json security definer set search_path = public, extensions as $$
 begin
   if not is_valid_session(p_token) then
     return json_build_object('success', false, 'message', 'Session expired. Please re-authenticate.');
   end if;
 
   delete from trades where id = p_id;
-  return json_build_object('success', true, 'message', 'Trade deleted');
-end;
-$$ language plpgsql;
+  
+  insert into audit_log (action, target_id, session_id, client_ip)
+  values ('delete_trade', p_id, p_token, get_client_ip());
 
--- 10.7 ฟังก์ชันปรับรหัสผ่าน PIN
+  return json_build_object('success', true, 'message', 'Trade deleted');
+end; $$ language plpgsql;
+
+-- 7.4 อัปเดตสถานะแพ้ชนะด่วน
+create or replace function quick_update_result(p_token uuid, p_id uuid, p_result text)
+returns json security definer set search_path = public, extensions as $$
+begin
+  if not is_valid_session(p_token) then
+    return json_build_object('success', false, 'message', 'Session expired. Please re-authenticate.');
+  end if;
+
+  update trades set result = p_result where id = p_id;
+  return json_build_object('success', true, 'message', 'Result updated');
+end; $$ language plpgsql;
+
+-- 7.5 บันทึกคู่เงิน
+create or replace function save_pairs(p_token uuid, p_pairs text)
+returns json security definer set search_path = public, extensions as $$
+begin
+  if not is_valid_session(p_token) then return json_build_object('success', false, 'message', 'Session expired'); end if;
+  update app_config set value = p_pairs, updated_at = now() where key = 'pairs';
+  return json_build_object('success', true, 'message', 'Pairs saved');
+end; $$ language plpgsql;
+
+-- 7.6 บันทึกกลยุทธ์ Setup
+create or replace function save_setup_types(p_token uuid, p_setups text)
+returns json security definer set search_path = public, extensions as $$
+begin
+  if not is_valid_session(p_token) then return json_build_object('success', false, 'message', 'Session expired'); end if;
+  update app_config set value = p_setups, updated_at = now() where key = 'setup_types';
+  return json_build_object('success', true, 'message', 'Setup types saved');
+end; $$ language plpgsql;
+
+-- 7.7 บันทึกแท็กพฤติกรรม
+create or replace function save_behavior_tags(p_token uuid, p_tags text)
+returns json security definer set search_path = public, extensions as $$
+begin
+  if not is_valid_session(p_token) then return json_build_object('success', false, 'message', 'Session expired'); end if;
+  update app_config set value = p_tags, updated_at = now() where key = 'behavior_tags';
+  return json_build_object('success', true, 'message', 'Tags saved');
+end; $$ language plpgsql;
+
+-- 7.8 เปลี่ยนรหัส PIN ดับเบิ้ลเซสชันค้าง
 create or replace function change_pin(p_token uuid, p_old_pin text, p_new_pin text)
-returns json
-security definer
-set search_path = public, extensions
-as $$
+returns json security definer set search_path = public, extensions as $$
 declare
   v_stored_hash text;
 begin
-  if not is_valid_session(p_token) then
-    return json_build_object('success', false, 'message', 'Session expired');
-  end if;
+  if not is_valid_session(p_token) then return json_build_object('success', false, 'message', 'Session expired'); end if;
   
   select value into v_stored_hash from app_config where key = 'pin_hash';
   if v_stored_hash != crypt(p_old_pin, v_stored_hash) then
@@ -402,41 +542,48 @@ begin
     return json_build_object('success', false, 'message', 'PIN must be exactly 6 digits');
   end if;
   
-  update app_config set value = crypt(p_new_pin, gen_salt('bf')), updated_at = now()
-    where key = 'pin_hash';
-  
-  delete from owner_sessions;
-  
+  update app_config set value = crypt(p_new_pin, gen_salt('bf')), updated_at = now() where key = 'pin_hash';
+  delete from owner_sessions; -- ตัดอายุกวาดเซสชันออกให้หมดทันทีเพื่อบังคับล็อกอินใหม่
   return json_build_object('success', true, 'message', 'PIN changed successfully');
-end;
-$$ language plpgsql;
-
--- 10.8 ฟังก์ชันแผงสถิติเบ็ดเตล็ดอื่น ๆ
-create or replace function save_pairs(p_token uuid, p_pairs text)
-returns json security definer set search_path = public, extensions as $$
-begin
-  if not is_valid_session(p_token) then return json_build_object('success', false, 'message', 'Session expired'); end if;
-  update app_config set value = p_pairs, updated_at = now() where key = 'pairs';
-  return json_build_object('success', true, 'message', 'Pairs saved');
 end; $$ language plpgsql;
 
-create or replace function save_setup_types(p_token uuid, p_setups text)
+-- 7.9 บันทึกความคิดเห็นของอาจารย์พร้อมพิกัดชาร์ต
+create or replace function add_comment(
+  p_token text,
+  p_trade_id uuid,
+  p_author text,
+  p_content text,
+  p_image text default null,
+  p_link text default null,
+  p_parent_id uuid default null,
+  p_status text default 'Pending',
+  p_pin_x numeric default null,
+  p_pin_y numeric default null
+)
 returns json security definer set search_path = public, extensions as $$
 begin
-  if not is_valid_session(p_token) then return json_build_object('success', false, 'message', 'Session expired'); end if;
-  update app_config set value = p_setups, updated_at = now() where key = 'setup_types';
-  return json_build_object('success', true, 'message', 'Setup types saved');
+  if not verify_reviewer_token(p_token) and not is_valid_session(nullif(p_token, '')::uuid) then
+    return json_build_object('success', false, 'message', 'Unauthorized: Invalid review token or session.');
+  end if;
+
+  insert into trade_comments (trade_id, author_name, content, image_url, link_url, parent_id, status, pin_x, pin_y)
+  values (p_trade_id, p_author, p_content, nullif(p_image, ''), nullif(p_link, ''), p_parent_id, p_status, p_pin_x, p_pin_y);
+
+  return json_build_object('success', true, 'message', 'Comment submitted successfully.');
 end; $$ language plpgsql;
 
-create or replace function save_behavior_tags(p_token uuid, p_tags text)
-returns json security definer set search_path = public, extensions as $$
+-- 7.10 ทำลายสัญญาน "ยังไม่ได้อ่าน" ของคอมเมนต์รายเทรด
+create or replace function mark_comments_read(p_token uuid, p_trade_id uuid)
+returns json security definer set search_path = public as $$
 begin
-  if not is_valid_session(p_token) then return json_build_object('success', false, 'message', 'Session expired'); end if;
-  update app_config set value = p_tags, updated_at = now() where key = 'behavior_tags';
-  return json_build_object('success', true, 'message', 'Tags saved');
+  if not is_valid_session(p_token) then return json_build_object('success', false, 'message', 'Unauthorized session'); end if;
+  update trade_comments set is_read = true where trade_id = p_trade_id;
+  return json_build_object('success', true);
 end; $$ language plpgsql;
 
--- 11. DATABASE VIEWS
+-- ── STEP 8: สถิติด้านแผนภูมิคณิตศาสตร์ (DATABASE VIEWS SETUP) ──
+
+-- 8.1 ภาพรวมสถิติพอร์ตหลัก
 create or replace view v_dashboard_overall as
 select
   count(*) as total,
@@ -450,16 +597,17 @@ select
   coalesce(sum(case when result='Loss' then coalesce(loss_amount,0) else 0 end), 0) as total_loss_amount
 from trades;
 
+-- 8.2 สถิติแบ่งรายคู่สกุลเงิน
 create or replace view v_dashboard_by_pair as
 select
-  pair,
-  count(*) as total,
+  pair, count(*) as total,
   count(*) filter (where result = 'Win') as win,
   count(*) filter (where result = 'Loss') as loss,
   round(100.0 * count(*) filter (where result = 'Win') /
     nullif(count(*) filter (where result in ('Win','Loss')), 0), 1) as win_rate
 from trades group by pair;
 
+-- 8.3 สถิติแบ่งรายคาบเวลาตลาด
 create or replace view v_dashboard_by_session as
 select
   session, count(*) as total,
@@ -467,6 +615,7 @@ select
   count(*) filter (where result = 'Loss') as loss
 from trades where session is not null group by session;
 
+-- 8.4 สถิติแบ่งรายแผนกลยุทธ์ Setup
 create or replace view v_dashboard_by_setup as
 select
   setup_type, count(*) as total,
@@ -474,6 +623,7 @@ select
   count(*) filter (where result = 'Loss') as loss
 from trades where setup_type is not null group by setup_type;
 
+-- 8.5 แผงรวมเงินรายวันตามตารางปฏิทิน
 create or replace view v_calendar_daily as
 select
   trade_date, count(*) as total,
@@ -483,10 +633,11 @@ select
   round(coalesce(sum(case when result = 'Win' then rr when result = 'Loss' then -1 else 0 end), 0), 2) as net_rr
 from trades group by trade_date;
 
+-- 8.6 สถิติสแกนเปรียบเทียบตามชื่อวันในรอบสัปดาห์
 create or replace view v_by_day_of_week as
 select
   extract(dow from trade_date)::int as dow,
-  to_char(trade_date, 'Day') as day_name,
+  trim(to_char(trade_date, 'Day')) as day_name,
   count(*) as total,
   count(*) filter (where result = 'Win')  as win,
   count(*) filter (where result = 'Loss') as loss,
@@ -495,6 +646,7 @@ select
     nullif(count(*) filter (where result in ('Win','Loss')), 0), 1) as win_rate
 from trades where result is not null group by dow, day_name order by dow;
 
+-- 8.7 แผนที่ความร้อนสถิติรายชั่วโมง
 create or replace view v_by_hour as
 select
   extract(hour from time_entry)::int as hour, count(*) as total,
@@ -504,7 +656,120 @@ select
     nullif(count(*) filter (where result in ('Win','Loss')), 0), 1) as win_rate
 from trades where time_entry is not null and result is not null group by hour order by hour;
 
--- GRANTS FOR VIEWS
+-- 8.8 สรุปค่าปรับความเสียหายของสถิติต่อเนื่อง
+create or replace view v_con_loss_detail as
+select
+  pair, max(con_loss) as max_con_loss,
+  sum(case when result = 'Loss' then coalesce(loss_amount, 0) else 0 end) as total_loss_amount,
+  count(*) filter (where result = 'Loss') as total_losses
+from trades group by pair;
+
+-- 8.9 วิเคราะห์สถิติจิตวิทยาพฤติกรรม Tag
+create or replace view v_tag_analysis as
+select
+  unnest(tags) as tag, count(*) as total,
+  count(*) filter (where result = 'Win') as win,
+  count(*) filter (where result = 'Loss') as loss,
+  round(100.0 * count(*) filter (where result = 'Win') /
+    nullif(count(*) filter (where result in ('Win','Loss')), 0), 1) as win_rate
+from trades group by tag;
+
+-- 8.10 เส้นโค้งกำไรขาดทุน Drawdown มิติสะสมพอร์ต
+create or replace view v_equity_drawdown as
+with ordered_trades as (
+  select 
+    id, trade_date, pair, result,
+    case when result = 'Win' then coalesce(rr, 1) when result = 'Loss' then -1 else 0 end as trade_r,
+    row_number() over (order by trade_date asc, created_at asc) as x
+  from trades where result is not null and result in ('Win','Loss')
+),
+running_equity as (
+  select 
+    x, trade_date, pair, result,
+    sum(trade_r) over (order by x asc) as equity
+  from ordered_trades
+),
+peak_calc as (
+  select 
+    x, trade_date, pair, result, equity,
+    max(equity) over (order by x asc) as peak
+  from running_equity
+)
+select 
+  x, trade_date, pair, result, equity, peak,
+  round(equity - peak, 2) as drawdown
+from peak_calc order by x asc;
+
+-- 8.11 🌟 [INSIGHT ENGINE]: วิเคราะห์สถิติไขว้ข้ามพิกเซลดึงจุดแข็งจุดรั่วไหล
+create or replace view v_multi_dim_expectancy as
+select
+  pair, session,
+  trim(to_char(trade_date, 'Day')) as day_name,
+  extract(dow from trade_date)::int as dow,
+  count(*) as total_trades,
+  count(*) filter (where result = 'Win') as wins,
+  count(*) filter (where result = 'Loss') as losses,
+  count(*) filter (where result = 'Miss') as misses,
+  round(100.0 * count(*) filter (where result = 'Win') /
+    nullif(count(*) filter (where result in ('Win','Loss')), 0), 1) as win_rate,
+  round(coalesce(sum(case when result = 'Win' then rr when result = 'Loss' then -1 else 0 end), 0), 2) as total_rr,
+  round(coalesce(sum(case when result = 'Win' then rr when result = 'Loss' then -1 else 0 end), 0) /
+    nullif(count(*), 0)::numeric, 2) as expectancy_r
+from trades where result is not null and result in ('Win', 'Loss') and session is not null
+group by pair, session, day_name, dow;
+
+-- 8.12 🌟 [ADHERENCE INDEX]: ตรวจคะแนนประเมินวินัยเทรดเดอร์ในภาพรวม
+create or replace view v_adherence_score as
+with trade_eval as (
+  select t.id,
+    exists (
+      select 1 from v_multi_dim_expectancy m
+      where m.pair = t.pair and m.session = t.session 
+        and m.day_name = trim(to_char(t.trade_date, 'Day')) and m.expectancy_r > 0
+    ) as is_adherent
+  from trades t where t.result is not null and t.result in ('Win', 'Loss')
+)
+select
+  count(*) as total_evaluated_trades,
+  count(*) filter (where is_adherent) as disciplined_trades,
+  round(100.0 * count(*) filter (where is_adherent) / nullif(count(*), 0), 1) as adherence_score_pct
+from trade_eval;
+
+-- 8.13 🌟 [HABIT LOOP STREAK]: ตารางคำนวณวันบันทึกสถิติมั่งคั่งต่อเนื่องสะสม
+create or replace view v_logging_streak as
+with date_series as (
+  select distinct trade_date from trades order by trade_date desc
+),
+streak_calc as (
+  select trade_date,
+    trade_date - (row_number() over (order by trade_date desc))::int as group_id
+  from date_series
+)
+select count(*) as current_streak_days
+from streak_calc
+where group_id = (select group_id from streak_calc limit 1)
+group by group_id;
+
+-- 8.14 🌟 [DATA HYGIENE CHECK]: ตัวคัดกรองออเดอร์ผีที่ลืมคีย์สรุปพอร์ต
+create or replace view v_data_hygiene_stale as
+select id, trade_date, pair, direction, entry_price, stop_loss, notes
+from trades where result is null and trade_date < (now() - interval '7 days')::date
+order by trade_date asc;
+
+-- 8.15 🌟 [SECURITY LOGS]: ตารางสืบสวนรอยเท้าประวัติความเคลื่อนไหวความปลอดภัยหนึ่งเดียว
+create or replace view v_access_footprint as
+select 
+  viewed_at as event_time, client_ip, session_id,
+  'VIEW_PAGE' as type, page as action, 'PUBLIC' as target, null::jsonb as details
+from page_views
+union all
+select
+  created_at as event_time, client_ip, session_id,
+  'ADMIN_ACTION' as type, action, coalesce(target_pair, 'SYSTEM') as target, details
+from audit_log
+order by event_time desc;
+
+-- ── STEP 9: มอบสิทธิ์การเข้าใช้งานระบบวิเคราะห์วิจัยทั้งหมดให้ API ──
 grant select on v_dashboard_overall to anon, authenticated;
 grant select on v_dashboard_by_pair to anon, authenticated;
 grant select on v_dashboard_by_session to anon, authenticated;
@@ -512,6 +777,25 @@ grant select on v_dashboard_by_setup to anon, authenticated;
 grant select on v_calendar_daily to anon, authenticated;
 grant select on v_by_day_of_week to anon, authenticated;
 grant select on v_by_hour to anon, authenticated;
+grant select on v_con_loss_detail to anon, authenticated;
+grant select on v_tag_analysis to anon, authenticated;
+grant select on v_equity_drawdown to anon, authenticated;
+grant select on v_multi_dim_expectancy to anon, authenticated;
+grant select on v_adherence_score to anon, authenticated;
+grant select on v_logging_streak to anon, authenticated;
+grant select on v_data_hygiene_stale to anon, authenticated;
+grant select on v_access_footprint to anon, authenticated;
 
--- DONE
-comment on table trades is 'TradeLog Production Master Database v3.0.0';
+grant execute on function verify_pin(text, uuid) to anon, authenticated;
+grant execute on function change_pin(text, text) to anon, authenticated;
+grant execute on function save_pairs(text, text) to anon, authenticated;
+grant execute on function save_setup_types(text, text) to anon, authenticated;
+grant execute on function save_behavior_tags(text, text) to anon, authenticated;
+grant execute on function add_comment(text, uuid, text, text, text, text, uuid, text, numeric, numeric) to anon, authenticated;
+grant execute on function mark_comments_read(uuid, uuid) to anon, authenticated;
+grant execute on function quick_update_result(uuid, uuid, text) to anon, authenticated;
+
+-- ==============================================================================
+--  TRADELOG MASTER RECOVERY SCRIPTS COMPILED SUCCESSFUL ✓
+-- ==============================================================================
+comment on table trades is 'TradeLog Master DB Recovery Manifest System v3.0.6';

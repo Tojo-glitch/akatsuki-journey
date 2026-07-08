@@ -13,11 +13,9 @@ export default function AddTrade({ config, requirePin, toast, editData, onEditDo
   const [aiAnalyzing, setAiAnalyzing] = useState(false)
   const [aiPrefilledFields, setAiPrefilledFields] = useState([])
 
-  // ── 🌟 แผงสถิติสำหรับใช้งานด้านการจับตาพฤติกรรม (Guardrails database) ──
   const [historyExpectancyMatrix, setHistoryExpectancyMatrix] = useState([])
 
   useEffect(() => {
-    // โหลดประวัติจุดพังของพอร์ตสะสมขึ้นมาเตรียมสแกนภัย
     supabase.from('v_multi_dim_expectancy').select('*')
       .then(res => setHistoryExpectancyMatrix(res?.data || []))
       .catch(() => {})
@@ -36,28 +34,29 @@ export default function AddTrade({ config, requirePin, toast, editData, onEditDo
     handleSubmit
   } = useTradeForm({ config, requirePin, toast, editData, onEditDone })
 
-  // ── 🌟 SMART GUARDRAILS: ระบบเซนเซอร์ตรวจจับภัยสดเรียลไทม์ ──
-  const activeGuardrailWarning = useMemo(() => {
+  // ── 🌟 LIVE CONDITION RADAR & SMART GUARDRAIL (วิเคราะห์ความคุ้มค่าเรียลไทม์) ──
+  const liveRadarScan = useMemo(() => {
     if (!form.pair || !form.trade_date) return null
     
-    // แปลงวันที่หน้าแอปเป็นชื่อวันจันทร์-อาทิตย์ เพื่อนำมาเทียบข้อมูล View หลังบ้าน
     const daysNameList = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
     const parsedDayName = daysNameList[new Date(form.trade_date).getDay()]
 
-    // ทำการกรองสถิติย้อนหลังว่าเคยมีสถิติที่ขาดทุนเฉลี่ยติดลบในคอมโบนี้หรือไม่
-    const matchingLeak = historyExpectancyMatrix.find(x => 
+    // ค้นหาสถิติเชิงลึกข้ามมิติในฐานข้อมูลจริงร่วมกับฟอร์มที่กำลังคีย์
+    const matchedStats = historyExpectancyMatrix.find(x => 
       x.pair === form.pair && 
       x.day_name === parsedDayName && 
-      (session ? x.session === session : true) &&
-      parseFloat(x.expectancy_r) < 0
+      (session ? x.session === session : true)
     )
 
-    if (matchingLeak) {
+    if (matchedStats) {
+      const exp = parseFloat(matchedStats.expectancy_r) || 0
       return {
-        expectancy: matchingLeak.expectancy_r,
-        sample: matchingLeak.total_trades,
-        day: matchingLeak.day_name,
-        session: matchingLeak.session
+        expectancy: exp,
+        sample: matchedStats.total_trades,
+        winRate: matchedStats.win_rate,
+        day: matchedStats.day_name,
+        session: matchedStats.session,
+        isDangerous: exp < 0 // ติดลบคือแผงอันตราย
       }
     }
     return null
@@ -149,14 +148,24 @@ export default function AddTrade({ config, requirePin, toast, editData, onEditDo
         </div>
       </div>
 
-      {/* ── 🌟 ALERT: แถบแจ้งเตือนภัยสดระดับสากลก่อนฝ่าฝืนสถิติตัวเอง ── */}
-      {activeGuardrailWarning && (
+      {/* ── 🌟 LIVE CONDITION RADAR & SMART GUARDRAIL (ตรวจจับอัตราเฉลี่ยความปลอดภัยขณะพิมพ์สด) ── */}
+      {liveRadarScan && (
         <div style={{
-          background: 'rgba(255, 92, 122, 0.04)', border: '1px dashed var(--red)',
-          color: 'var(--red)', padding: '12px 16px', borderRadius: 4, marginBottom: 14,
+          background: liveRadarScan.isDangerous ? 'rgba(255, 92, 122, 0.04)' : 'rgba(38, 217, 160, 0.04)',
+          border: liveRadarScan.isDangerous ? '1px dashed var(--red)' : '1px dashed var(--green)',
+          color: liveRadarScan.isDangerous ? 'var(--red)' : 'var(--green)',
+          padding: '12px 16px', borderRadius: 4, marginBottom: 14,
           fontSize: 12, fontWeight: 700, letterSpacing: '0.01em', lineHeight: 1.6
         }}>
-          Expectancy Warning: Statistically, executing {activeGuardrailWarning.pair} during {activeGuardrailWarning.session} on {activeGuardrailWarning.day}s yields a negative expectancy of {activeGuardrailWarning.expectancy}R (across {activeGuardrailWarning.sample} previous trades). Consider reviewing entry parameters.
+          {liveRadarScan.isDangerous ? (
+            <span>
+              Expectancy Warning: Statistically, executing {liveRadarScan.pair} during {liveRadarScan.session} on {liveRadarScan.day}s yields a negative expectancy of {liveRadarScan.expectancy}R (Win Rate: {liveRadarScan.winRate}% across {liveRadarScan.sample} trades). Consider reviewing risk parameters.
+            </span>
+          ) : (
+            <span>
+              Edge Verification: Historically, executing {liveRadarScan.pair} during {liveRadarScan.session} on {liveRadarScan.day}s maintains a positive expectancy of +{liveRadarScan.expectancy}R (Win Rate: {liveRadarScan.winRate}% across {liveRadarScan.sample} trades). Execution parameters verified.
+            </span>
+          )}
         </div>
       )}
 
