@@ -1,6 +1,28 @@
+# Dependency directories (โฟลเดอร์โมดูลภายนอก)
 node_modules/
+jspm_packages/
+
+# Build and Compilation outputs (ผลลัพธ์คอมไพล์)
 dist/
+tmp/
+out/
+.cache/
+
+# Local Environment Variables and Secrets (สกัดกั้นตัวแปรความลับทั้งหมด)
 .env
 .env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.env.json
+
+# Backups and Compressed Archives (สกัดกั้นการรวมไฟล์บีบอัดสำรอง)
+*.zip
+*.tar.gz
+project.zip
+
+# IDE configurations and system files (ไฟล์ระบบส่วนตัวเครื่องคอมพิวเตอร์)
+.vscode/
+.idea/
 .DS_Store
-*.log
+Thumbs.db

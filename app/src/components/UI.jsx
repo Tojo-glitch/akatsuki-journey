@@ -1,53 +1,53 @@
-import React, { useRef, useEffect, useState, createContext, useContext } from 'react'
+import React, { useRef, useEffect, useState } from 'react'
 
-// ── Badge ────────────────────────────────────────────────────────
+// ── Badge (รองรับระบบเรืองแสงโปร่งแสง Glassmorphic) ─────────────────────────
 export function Badge({ type, children }) {
+  const displayType = type || 'Open'
   const cls = {
     win: 'badge-win', loss: 'badge-loss', miss: 'badge-miss',
     Win: 'badge-win', Loss: 'badge-loss', Miss: 'badge-miss',
     buy: 'badge-buy', sell: 'badge-sell',
     Buy: 'badge-buy', Sell: 'badge-sell',
     Asia: 'badge-asia', London: 'badge-london', 'New York': 'badge-ny',
-  }[type] || 'badge-miss'
-  return <span className={`badge ${cls}`}>{children ?? type}</span>
+    open: 'badge-open', Open: 'badge-open', active: 'badge-open', Active: 'badge-open'
+  }[displayType] || 'badge-open'
+  return <span className={`badge ${cls}`}>{children ?? displayType}</span>
 }
 
-// ── Skeleton ─────────────────────────────────────────────────────
+// ── Skeleton (จับคู่เฉดสีเทานิ่งเกรดทหาร) ─────────────────────────────
 export function SkeletonStats() {
   return (
     <div className="stats-row" style={{ marginBottom: 16 }}>
-      {[...Array(4)].map((_, i) => <div key={i} className="skeleton skel-stat" />)}
+      {[...Array(4)].map((_, i) => <div key={i} className="skeleton" style={{ height: '70px', borderRadius: '4px' }} />)}
     </div>
   )
 }
 
 export function SkeletonTable({ rows = 6 }) {
   return (
-    <div style={{ padding: '12px 16px' }}>
+    <div style={{ padding: '16px' }}>
       {[...Array(rows)].map((_, i) => (
-        <div key={i} className="skeleton skel-line" style={{ marginBottom: 10, width: i % 3 === 0 ? '100%' : i % 3 === 1 ? '85%' : '70%' }} />
+        <div key={i} className="skeleton" style={{ height: '24px', marginBottom: '8px', borderRadius: '4px', width: i % 3 === 0 ? '100%' : i % 3 === 1 ? '85%' : '70%' }} />
       ))}
     </div>
   )
 }
 
 export function SkeletonCard({ height = 200 }) {
-  return <div className="skeleton" style={{ height, borderRadius: 10, marginBottom: 14 }} />
+  return <div className="skeleton" style={{ height, borderRadius: 4, marginBottom: 14 }} />
 }
 
 // ── Empty ────────────────────────────────────────────────────────
-export function Empty({ icon = '◎', text = 'No data yet', sub }) {
+export function Empty({ text = 'No configurations found', sub }) {
   return (
-    <div className="empty">
-      <div className="empty-icon">{icon}</div>
-      <p>{text}</p>
-      {sub && <p style={{ fontSize: 12, color: 'var(--t3)', marginTop: 4 }}>{sub}</p>}
+    <div style={{ padding: '32px 16px', textAlign: 'center', background: 'rgba(255,255,255,0.01)', border: '1px dashed var(--border)', borderRadius: 4 }}>
+      <p style={{ fontSize: 12, color: 'var(--text-dim)', margin: 0, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{text}</p>
+      {sub && <p style={{ fontSize: 11, color: 'var(--text-dark)', marginTop: 4, margin: 0 }}>{sub}</p>}
     </div>
   )
 }
 
-// ── PIN Modal ────────────────────────────────────────────────────
-// Fix: use useRef inside component properly (not inside map)
+// ── PIN Modal (แก้ไขระบบตรวจจับ Contrast สีตัวหนังสือ) ──────────────────────
 export function PINModal({ open, onConfirm, onClose }) {
   const [digits, setDigits] = useState(['', '', '', '', '', ''])
   const [error,  setError]  = useState('')
@@ -76,22 +76,13 @@ export function PINModal({ open, onConfirm, onClose }) {
         refs[i - 1]?.current?.focus()
       }
     }
-    if (e.key === 'Enter') handleConfirm()
   }
 
-  const handleInput = (i, val) => {
-    if (!/^\d?$/.test(val)) return
-    const d = [...digits]; d[i] = val; setDigits(d)
-    if (val && i < 5) refs[i + 1].current?.focus()
-  }
-
-  const handleConfirm = async () => {
-    const pin = digits.join('')
-    if (pin.length < 6) { setError('Enter all 6 digits'); return }
+  const triggerConfirm = async (pinValue) => {
     setLoading(true)
     setError('')
     try {
-      const ok = await onConfirm(pin)
+      const ok = await onConfirm(pinValue)
       if (!ok) {
         setError('Incorrect PIN — try again')
         setDigits(['', '', '', '', '', ''])
@@ -103,12 +94,26 @@ export function PINModal({ open, onConfirm, onClose }) {
     setLoading(false)
   }
 
+  const handleInput = (i, val) => {
+    if (!/^\d?$/.test(val)) return
+    const d = [...digits]; d[i] = val
+    setDigits(d)
+    
+    if (val && i < 5) {
+      refs[i + 1].current?.focus()
+    } else if (val && i === 5) {
+      const fullPin = d.join('')
+      if (fullPin.length === 6) {
+        triggerConfirm(fullPin)
+      }
+    }
+  }
+
   return (
     <div className="overlay" onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="modal">
-        <div style={{ fontSize: 36, marginBottom: 6 }}>🔐</div>
-        <h3 style={{ fontFamily: 'var(--display)', fontSize: 18, marginBottom: 4 }}>Owner Access</h3>
-        <p style={{ color: 'var(--t2)', fontSize: 13, marginBottom: 16 }}>Enter your 6-digit PIN to continue</p>
+      <div className="modal" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+        <h3 style={{ fontFamily: 'var(--display)', fontSize: 16, fontWeight: 700, marginBottom: 4, letterSpacing: '-0.01em', color: 'var(--text)' }}>Owner Verification</h3>
+        <p style={{ color: 'var(--text-dim)', fontSize: 12, marginBottom: 16 }}>Enter your 6-digit access PIN to commit changes</p>
         <div className="pin-dots">
           {digits.map((d, i) => (
             <input
@@ -123,27 +128,26 @@ export function PINModal({ open, onConfirm, onClose }) {
         <div className="pin-error" style={{ minHeight: 18 }}>{error}</div>
         <div style={{ display: 'flex', gap: 10, justifyContent: 'center', marginTop: 8 }}>
           <button className="btn-ghost" onClick={onClose}>Cancel</button>
-          <button className="btn-primary" onClick={handleConfirm} disabled={loading}>
-            {loading ? '⏳ Checking…' : 'Confirm'}
+          <button className="btn-primary" onClick={() => triggerConfirm(digits.join(''))} disabled={loading}>
+            {loading ? 'Verifying…' : 'Verify'}
           </button>
         </div>
-        <p style={{ fontSize: 11, color: 'var(--t3)', marginTop: 14 }}>
-          PIN is valid for 15 minutes per session
+        <p style={{ fontSize: 11, color: 'var(--text-dark)', marginTop: 14 }}>
+          Access remains active for 15 minutes
         </p>
       </div>
     </div>
   )
 }
 
-// ── Confirm dialog ────────────────────────────────────────────────
+// ── Confirm dialog (แก้ไขระบบบังคับตัวหนังสือและปุ่มให้เปลี่ยนตามโหมดสว่าง-มืด) ────────
 export function Confirm({ open, title, msg, onYes, onNo, danger = true }) {
   if (!open) return null
   return (
     <div className="overlay" onClick={e => e.target === e.currentTarget && onNo()}>
-      <div className="modal" style={{ maxWidth: 340 }}>
-        <div style={{ fontSize: 28, marginBottom: 8 }}>⚠️</div>
-        <h3 style={{ fontFamily: 'var(--display)', marginBottom: 8 }}>{title}</h3>
-        <p style={{ color: 'var(--t2)', fontSize: 13, marginBottom: 20, lineHeight: 1.6 }}>{msg}</p>
+      <div className="modal" style={{ maxWidth: 340, background: 'var(--card)', border: '1px solid var(--border)' }}>
+        <h3 style={{ fontFamily: 'var(--display)', fontSize: 16, fontWeight: 700, marginBottom: 8, color: 'var(--text)' }}>{title}</h3>
+        <p style={{ color: 'var(--text-dim)', fontSize: 13, marginBottom: 20, lineHeight: 1.6 }}>{msg}</p>
         <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
           <button className="btn-ghost" onClick={onNo}>Cancel</button>
           <button className={danger ? 'btn-danger' : 'btn-primary'} onClick={onYes}>Confirm</button>
@@ -163,7 +167,9 @@ export function ToastList({ toasts }) {
     }}>
       {toasts.map(t => (
         <div key={t.id} className={`toast ${t.type}`}>
-          <span style={{ fontSize: 15 }}>{t.type === 'success' ? '✓' : '✕'}</span>
+          <span style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            [{t.type}]
+          </span>
           <span>{t.msg}</span>
         </div>
       ))}
@@ -193,7 +199,7 @@ export function CountUp({ value, suffix = '', decimals = 0 }) {
   return <>{display}{suffix}</>
 }
 
-// ── Lightbox ──────────────────────────────────────────────────────
+// ── Lightbox (เปลี่ยนจากรูปกากบาท ✕ เป็นปุ่มข้อความ Close) ────────────────────
 export function Lightbox({ src, onClose }) {
   useEffect(() => {
     if (!src) return
@@ -211,10 +217,10 @@ export function Lightbox({ src, onClose }) {
       />
       <button onClick={onClose} style={{
         position: 'absolute', top: 16, right: 16,
-        background: 'rgba(0,0,0,.5)', border: 'none', color: '#fff',
-        width: 36, height: 36, borderRadius: '50%', cursor: 'pointer',
-        fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center',
-      }}>✕</button>
+        background: 'rgba(0,0,0,.7)', border: '1px solid #333', color: '#fff',
+        borderRadius: 4, padding: '6px 12px', cursor: 'pointer',
+        fontSize: 11, textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.04em'
+      }}>Close</button>
     </div>
   )
 }
@@ -258,9 +264,6 @@ export function validate(form) {
     errors.stop_loss = 'Must be a number'
   }
 
-  if (!form.result) errors.result = 'Select a result'
-
-  // Sanity checks
   const e = parseFloat(form.entry_price)
   const sl = parseFloat(form.stop_loss)
   const tp = parseFloat(form.target_price)

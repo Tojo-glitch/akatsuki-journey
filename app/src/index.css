@@ -12,20 +12,37 @@ body {
 }
 #root { height: 100%; }
 
-/* ── Design tokens ── */
+/* ── Design tokens (ผสานเฉดสี Glassmorphism แบบถนอมสายตาเทรดเดอร์) ── */
 :root {
   --bg:      #0B0E14;
   --card:    #12161F;
   --card2:   #1B212E;
   --border:  #222A38;
   --border2: #2A3447;
+  
   --green:   #26D9A0;
   --green2:  #1AB87F;
+  --green-dim: rgba(38, 217, 160, 0.08);
+  --green-border: rgba(38, 217, 160, 0.22);
+
   --red:     #FF5C7A;
+  --red-dim: rgba(255, 92, 122, 0.08);
+  --red-border: rgba(255, 92, 122, 0.22);
+
   --yellow:  #FFC857;
+  --yellow-dim: rgba(255, 200, 87, 0.08);
+  --yellow-border: rgba(255, 200, 87, 0.2);
+
   --blue:    #5B9FFF;
+  --blue-dim: rgba(91, 159, 255, 0.08);
+  --blue-border: rgba(91, 159, 255, 0.2);
+
   --purple:  #9D7FE8;
+  --purple-dim: rgba(157, 127, 232, 0.08);
+  --purple-border: rgba(157, 127, 232, 0.2);
+
   --text:    #E8EAF0;
+  --text-dim: #7B8299;
   --t2:      #7B8299;
   --t3:      #3E4A5E;
   --mono:    'JetBrains Mono', monospace;
@@ -131,7 +148,7 @@ body {
   margin-bottom: 4px;
 }
 .page-sub { color: var(--t2); font-size: 13px; margin-bottom: 20px; }
-.section-title { font-family: var(--display); font-size: 14px; font-weight: 600; }
+.section-title { font-family: var(--display); font-size: 14px; font-weight: 600; color: var(--text); }
 
 /* ── Cards ── */
 .card {
@@ -191,7 +208,7 @@ body {
 .g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
 .g3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 14px; }
 
-/* ── Badges ── */
+/* ── Badges (ผสานค่าโปร่งแสง Glassmorphic สำหรับช่วงถนอมสายตากลางคืน) ── */
 .badge {
   display: inline-flex; align-items: center;
   padding: 2px 9px; border-radius: 20px;
@@ -199,14 +216,15 @@ body {
   font-family: var(--mono); text-transform: uppercase;
   white-space: nowrap; letter-spacing: .03em;
 }
-.badge-win    { background: rgba(38,217,160,.12); color: var(--green); border: 1px solid rgba(38,217,160,.25); }
-.badge-loss   { background: rgba(255,92,122,.12); color: var(--red);   border: 1px solid rgba(255,92,122,.25); }
-.badge-miss   { background: rgba(255,200,87,.10); color: var(--yellow);border: 1px solid rgba(255,200,87,.25); }
-.badge-buy    { background: rgba(38,217,160,.08); color: var(--green); }
-.badge-sell   { background: rgba(255,92,122,.08); color: var(--red); }
-.badge-asia   { background: rgba(157,127,232,.1); color: var(--purple); }
-.badge-london { background: rgba(91,159,255,.1);  color: var(--blue); }
-.badge-ny     { background: rgba(255,200,87,.1);  color: var(--yellow); }
+.badge-win    { background: var(--green-dim); color: var(--green); border: 1px solid var(--green-border); }
+.badge-loss   { background: var(--red-dim); color: var(--red); border: 1px solid var(--red-border); }
+.badge-miss   { background: var(--yellow-dim); color: var(--yellow); border: 1px solid var(--yellow-border); }
+.badge-open   { background: rgba(123, 130, 153, 0.06); color: var(--t2); border: 1px solid rgba(123, 130, 153, 0.18); }
+.badge-buy    { background: var(--blue-dim); color: var(--blue); border: 1px solid var(--blue-border); }
+.badge-sell   { background: var(--red-dim); color: var(--red); border: 1px solid var(--red-border); }
+.badge-asia   { background: var(--purple-dim); color: var(--purple); border: 1px solid var(--purple-border); }
+.badge-london { background: var(--blue-dim); color: var(--blue); border: 1px solid var(--blue-border); }
+.badge-ny     { background: var(--yellow-dim); color: var(--yellow); border: 1px solid var(--yellow-border); }
 
 /* ── Table ── */
 .table-wrap { overflow-x: auto; }
@@ -222,7 +240,13 @@ th {
 td { padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
 tr:last-child td { border-bottom: none; }
 tbody tr:hover td { background: rgba(255,255,255,.02); }
-.mono { font-family: var(--mono); }
+
+/* บังคับตัวเลขตรงหลักแบบสถาบัน */
+.mono { 
+  font-family: var(--mono) !important; 
+  font-variant-numeric: tabular-nums; 
+  letter-spacing: -0.01em;
+}
 .pos  { color: var(--green); }
 .neg  { color: var(--red); }
 .dim  { color: var(--t2); }
@@ -244,9 +268,9 @@ input, select, textarea {
 input:focus, select:focus, textarea:focus {
   outline: none;
   border-color: var(--green);
-  box-shadow: 0 0 0 3px rgba(38,217,160,.1);
+  box-shadow: 0 0 0 3px rgba(38, 217, 160, .1);
 }
-input[type="number"] { font-family: var(--mono); }
+input[type="number"] { font-family: var(--mono); font-variant-numeric: tabular-nums; }
 textarea { resize: none; height: 72px; }
 .form-hint { font-size: 11px; color: var(--t3); }
 
@@ -270,9 +294,9 @@ textarea { resize: none; height: 72px; }
   color: var(--t2); transition: all .12s;
   font-family: 'Inter', sans-serif;
 }
-.result-btn.win.active  { background: rgba(38,217,160,.15);  color: var(--green);  border-color: var(--green); }
-.result-btn.loss.active { background: rgba(255,92,122,.15); color: var(--red);    border-color: var(--red); }
-.result-btn.miss.active { background: rgba(255,200,87,.12); color: var(--yellow); border-color: var(--yellow); }
+.result-btn.win.active  { background: rgba(38,217,160,.08);  color: var(--green);  border-color: var(--green-border); }
+.result-btn.loss.active { background: rgba(38,217,160,.08); color: var(--red);    border-color: var(--red-border); }
+.result-btn.miss.active { background: rgba(255,200,87,.08); color: var(--yellow); border-color: var(--yellow-border); }
 
 /* Auto calc box */
 .auto-calc {
@@ -526,7 +550,7 @@ textarea { resize: none; height: 72px; }
    Phase 2A + 4 — Theme, Auth, Route Guard CSS
    ================================================================ */
 
-/* ── Light mode theme ─────────────────────────────────────────── */
+/* ── Light mode theme (ซ่อมมิติสีและคอนทราสต์ข้อความกลืนกันให้เข้มคมชัดเกรด Bloomberg) ── */
 [data-theme="light"] {
   --bg:      #F4F6FA;
   --card:    #FFFFFF;
@@ -540,11 +564,17 @@ textarea { resize: none; height: 72px; }
   --blue:    #2B7FE8;
   --purple:  #7C5CC9;
   --text:    #111827;
-  --t2:      #4B5568;
-  --t3:      #9CA3AF;
+  --t2:      #475569; /* ปรับจาก #4B5568 เป็นเทาคมชัดขึ้นมาก */
+  --t3:      #64748B; /* ปรับจาก #9CA3AF เพื่อไม่ให้สีขาวกลืน */
+  
+  --green-dim: rgba(14, 168, 112, 0.08);
+  --red-dim: rgba(232, 51, 74, 0.08);
+  --yellow-dim: rgba(212, 150, 10, 0.08);
+  --blue-dim: rgba(43, 127, 232, 0.08);
+  --purple-dim: rgba(124, 92, 201, 0.08);
 }
 
-[data-theme="light"] body { background: var(--bg); }
+[data-theme="light"] body { background: var(--bg); color: var(--text); }
 
 [data-theme="light"] input,
 [data-theme="light"] select,
@@ -554,14 +584,15 @@ textarea { resize: none; height: 72px; }
   border-color: var(--border);
 }
 
-[data-theme="light"] .badge-win    { background: rgba(14,168,112,.1);  color: #0A8A5C; border-color: rgba(14,168,112,.25); }
-[data-theme="light"] .badge-loss   { background: rgba(232,51,74,.1);   color: #C42040; border-color: rgba(232,51,74,.25);  }
-[data-theme="light"] .badge-miss   { background: rgba(212,150,10,.1);  color: #A67800; border-color: rgba(212,150,10,.25); }
-[data-theme="light"] .badge-buy    { background: rgba(14,168,112,.08); color: #0A8A5C; }
-[data-theme="light"] .badge-sell   { background: rgba(232,51,74,.08);  color: #C42040; }
-[data-theme="light"] .badge-asia   { background: rgba(124,92,201,.1);  color: #6544B8; }
-[data-theme="light"] .badge-london { background: rgba(43,127,232,.1);  color: #1A65CC; }
-[data-theme="light"] .badge-ny     { background: rgba(212,150,10,.1);  color: #A67800; }
+[data-theme="light"] .badge-win    { background: var(--green-dim); color: #0EA870; border-color: rgba(14,168,112,.22); }
+[data-theme="light"] .badge-loss   { background: var(--red-dim);   color: #E8334A; border-color: rgba(232,51,74,.22);  }
+[data-theme="light"] .badge-miss   { background: var(--yellow-dim);  color: #D4960A; border-color: rgba(212,150,10,.22); }
+[data-theme="light"] .badge-open   { background: rgba(100, 116, 139, 0.06); color: #475569; border-color: rgba(100, 116, 139, 0.18); }
+[data-theme="light"] .badge-buy    { background: rgba(14,168,112,.06); color: #0EA870; }
+[data-theme="light"] .badge-sell   { background: rgba(232,51,74,.06);  color: #E8334A; }
+[data-theme="light"] .badge-asia   { background: rgba(124,92,201,.06);  color: #7C5CC9; }
+[data-theme="light"] .badge-london { background: rgba(43,127,232,.06);  color: #2B7FE8; }
+[data-theme="light"] .badge-ny     { background: rgba(212,150,10,.06);  color: #D4960A; }
 
 [data-theme="light"] .btn-primary { background: var(--green); color: #fff; }
 [data-theme="light"] .btn-primary:hover { background: var(--green2); }

@@ -1,15 +1,12 @@
 -- ================================================================
---  TRADE JOURNAL v3 — Supabase Schema
---  วิธีใช้: Supabase Dashboard → SQL Editor → New Query → วางทั้งหมดนี้ → Run
---  รันครั้งเดียวตอน setup เท่านั้น
+--  TRADELOG MASTER DATABASE SCHEMA — COMPILATION EDITION
+--  รันคำสั่งชุดนี้เพียงรอบเดียวเพื่อจัดทำตารางและระบบวิเคราะห์ทั้งหมด
 -- ================================================================
 
--- เปิด extension สำหรับ UUID
-create extension if not exists "pgcrypto";
+-- 1. ยืนยันการเปิดปลั๊กอินเข้ารหัสความปลอดภัยระดับฐานข้อมูล
+create extension if not exists "pgcrypto" schema extensions;
 
--- ================================================================
--- 1. ตาราง TRADES — หัวใจหลักของระบบ (รวมทุก pair ไว้ตารางเดียว)
--- ================================================================
+-- 2. สร้างตารางเก็บข้อมูลพอร์ตการเทรดหลัก (TRADES)
 create table trades (
   id uuid primary key default gen_random_uuid(),
   created_at timestamptz default now(),
@@ -17,12 +14,11 @@ create table trades (
 
   pair text not null,
   trade_date date not null,
+  exit_date date,
   time_entry time,
   time_out time,
 
-  -- session คำนวณอัตโนมัติจาก time_entry ด้วย trigger ด้านล่าง
   session text,
-
   direction text check (direction in ('Buy','Sell')),
   setup_type text,
 
@@ -30,10 +26,12 @@ create table trades (
   target_price numeric,
   stop_loss numeric,
   tick_size numeric default 0.0001,
+  lot_size numeric,
+  loss_amount numeric,
 
   result text check (result in ('Win','Loss','Miss')),
 
-  -- คำนวณอัตโนมัติด้วย trigger
+  -- ฟิลด์คำนวณอัตโนมัติด้วย trigger ระดับ DB
   tp_r numeric,
   sl_r numeric,
   rr numeric,
@@ -42,36 +40,77 @@ create table trades (
   image_link text,
   video_link text,
   notes text,
-
-  -- behavior tags เช่น Revenge Trade, FOMO, Planned
   tags text[] default '{}'
 );
 
--- Index เพื่อให้ query เร็วแม้ข้อมูลเยอะมาก
+-- ดัชนีระบบประมวลผลด่วน (Index Optimization)
 create index idx_trades_pair on trades(pair);
 create index idx_trades_date on trades(trade_date desc);
 create index idx_trades_result on trades(result);
 create index idx_trades_session on trades(session);
+create index idx_trades_entry_time on trades(time_entry);
 
--- ================================================================
--- 2. ตาราง CONFIG — เก็บ PIN (hashed), pairs, setup types
--- ================================================================
+-- 3. สร้างตารางบันทึกค่าระบบงานแอปพลิเคชัน (APP_CONFIG)
 create table app_config (
   key text primary key,
   value text not null,
   updated_at timestamptz default now()
 );
 
--- ค่าเริ่มต้น — PIN เริ่มต้นคือ 123456 (เก็บแบบ hash ด้วย crypt)
+-- บันทึกค่าเริ่มต้นหลักของระบบงาน (แฮชรหัส PIN '123456' ด้วย Bcrypt ทันที)
 insert into app_config (key, value) values
-  ('pin_hash', crypt('123456', gen_salt('bf'))),
+  ('pin_hash', extensions.crypt('123456', extensions.gen_salt('bf'))),
   ('pairs', 'XAUUSD,EURUSD,GBPUSD,USDJPY,BTCUSD'),
-  ('setup_types', 'BOS,OB,FVG,Liquidity Sweep,MSS,CISD,Other'),
+  ('setup_types', 'BOS,OB,FVG,Liquidity Sweep,MSS,Other'),
   ('behavior_tags', 'Planned,Revenge Trade,FOMO,Overconfident,Hesitant,Disciplined');
 
--- ================================================================
--- 3. FUNCTION: คำนวณ session จากเวลา entry
--- ================================================================
+-- 4. สร้างตารางบันทึกประวัติการกระทำของระบบ (AUDIT_LOG)
+create table audit_log (
+  id uuid primary key default gen_random_uuid(),
+  created_at timestamptz default now(),
+  action text not null,
+  target_id uuid,
+  target_pair text,
+  details jsonb
+);
+
+-- 5. สร้างตารางบันทึกจำนวนการเข้าส่องหน้าเว็บ (PAGE_VIEWS)
+create table page_views (
+  id uuid primary key default gen_random_uuid(),
+  created_at timestamptz default now(),
+  page text not null,
+  referrer text,
+  user_agent text
+);
+
+-- 6. ตารางบันทึกผู้ยิงรหัสผ่านเพื่อ Lockout (PIN_ATTEMPTS)
+create table pin_attempts (
+  client_ip text primary key,
+  attempts int default 0,
+  locked_until timestamptz
+);
+
+-- 7. ตารางออกเซสชันคีย์อายุสั้นความปลอดภัยสูงสุด (OWNER_SESSIONS)
+create table owner_sessions (
+  id uuid primary key default gen_random_uuid(),
+  created_at timestamptz default now(),
+  expires_at timestamptz not null
+);
+
+-- 8. เปิดใช้ ROW LEVEL SECURITY (RLS) เพื่อไม่ให้คนนอกเจาะข้อมูลชั้นสูงได้
+alter table trades enable row level security;
+alter table app_config enable row level security;
+alter table audit_log enable row level security;
+alter table page_views enable row level security;
+alter table pin_attempts enable row level security;
+alter table owner_sessions enable row level security;
+
+-- สิทธิ์ในการอ่านข้อมูลสาธารณะ
+create policy "Public read trades" on trades for select using (true);
+create policy "Public read config" on app_config for select using (key != 'pin_hash');
+create policy "Public insert views" on page_views for insert with check (true);
+
+-- 9. TRIGGERS: คำนวณช่วงระยะห่างทางผ่านและ Session คลาดเคลื่อนโดยอัตโนมัติ
 create or replace function calc_session(t time)
 returns text as $$
 begin
@@ -83,10 +122,6 @@ begin
 end;
 $$ language plpgsql immutable;
 
--- ================================================================
--- 4. FUNCTION + TRIGGER: คำนวณ direction(auto), TP(R), SL(R), R:R อัตโนมัติ
---    ทำงานทุกครั้งที่ insert หรือ update แถว
--- ================================================================
 create or replace function calc_trade_fields()
 returns trigger as $$
 declare
@@ -128,10 +163,7 @@ create trigger trg_calc_trade_fields
 before insert or update on trades
 for each row execute function calc_trade_fields();
 
--- ================================================================
--- 5. FUNCTION + TRIGGER: คำนวณ consecutive loss อัตโนมัติหลัง insert/update/delete
---    คำนวณใหม่ทั้งหมดต่อ pair เรียงตามวันที่ + เวลา
--- ================================================================
+-- TRIGGERS: คำนวณ Streak ความสูญเสียสะสมย้อนหลัง
 create or replace function recalc_con_loss(p_pair text)
 returns void as $$
 declare
@@ -148,7 +180,6 @@ begin
     elsif r.result = 'Win' then
       running_loss := 0;
     end if;
-    -- Miss ไม่กระทบ streak
 
     update trades set con_loss = running_loss where id = r.id;
   end loop;
@@ -172,84 +203,105 @@ create trigger trg_after_trade_change
 after insert or update of result or delete on trades
 for each row execute function trg_recalc_con_loss();
 
--- ================================================================
--- 6. ROW LEVEL SECURITY — เปิดให้ "อ่าน" ได้ทุกคน (public view)
---    แต่ "เขียน" ต้องผ่าน RPC function ที่เช็ค PIN เท่านั้น
--- ================================================================
-alter table trades enable row level security;
-alter table app_config enable row level security;
+-- 10. SYSTEM FUNCTIONS (RPCs)
+-- 10.1 ดึง IP แอดเดรส
+create or replace function get_client_ip()
+returns text as $$
+begin
+  return coalesce(
+    current_setting('request.headers', true)::json->>'x-forwarded-for',
+    '127.0.0.1'
+  );
+end;
+$$ language plpgsql stable;
 
--- ใครก็ตามอ่าน trades ได้ (สำหรับหน้า Public/Dashboard)
-create policy "Public read trades"
-  on trades for select
-  using (true);
-
--- ห้าม insert/update/delete ตรงๆ ผ่าน REST API — ต้องผ่าน RPC เท่านั้น
--- (ไม่สร้าง policy สำหรับ insert/update/delete = ปิดกั้นโดย default)
-
--- app_config อ่านได้เฉพาะ pairs/setup_types/behavior_tags (ไม่ใช่ pin_hash)
-create policy "Public read non-sensitive config"
-  on app_config for select
-  using (key != 'pin_hash');
-
--- ================================================================
--- 7. RPC FUNCTIONS — ทุกการเขียนข้อมูลต้องผ่านฟังก์ชันเหล่านี้ (เช็ค PIN ก่อนเสมอ)
---    ใช้ SECURITY DEFINER เพื่อให้ function มีสิทธิ์เขียนแม้ RLS จะบล็อก client
--- ================================================================
-
--- เช็ค PIN
+-- 10.2 ฟังก์ชันยืนยันตัวตน
 create or replace function verify_pin(p_pin text)
-returns boolean
+returns json
 security definer
-set search_path = public
+set search_path = public, extensions
 as $$
 declare
-  stored_hash text;
+  v_ip text;
+  v_attempts int;
+  v_locked_until timestamptz;
+  v_stored_hash text;
+  v_token uuid;
 begin
-  select value into stored_hash from app_config where key = 'pin_hash';
-  return stored_hash = crypt(p_pin, stored_hash);
+  v_ip := get_client_ip();
+  
+  select attempts, locked_until into v_attempts, v_locked_until 
+  from pin_attempts where client_ip = v_ip;
+
+  if v_locked_until is not null and v_locked_until > now() then
+    return json_build_object(
+      'success', false, 
+      'message', 'Too many verification failures. IP blocked for ' || ceil(extract(epoch from (v_locked_until - now())) / 60) || ' minutes.'
+    );
+  end if;
+
+  select value into v_stored_hash from app_config where key = 'pin_hash';
+
+  if v_stored_hash = crypt(p_pin, v_stored_hash) then
+    delete from pin_attempts where client_ip = v_ip;
+    
+    insert into owner_sessions (expires_at) 
+    values (now() + interval '15 minutes') 
+    returning id into v_token;
+
+    return json_build_object('success', true, 'token', v_token);
+  else
+    if v_attempts is null then
+      insert into pin_attempts (client_ip, attempts) values (v_ip, 1);
+      v_attempts := 1;
+    else
+      v_attempts := v_attempts + 1;
+      if v_attempts >= 5 then
+        update pin_attempts 
+        set attempts = v_attempts, locked_until = now() + interval '15 minutes'
+        where client_ip = v_ip;
+        return json_build_object('success', false, 'message', 'Security limit reached. IP blocked for 15 minutes.');
+      else
+        update pin_attempts set attempts = v_attempts where client_ip = v_ip;
+      end if;
+    end if;
+
+    return json_build_object('success', false, 'message', 'Verification failed. Attempts remaining: ' || (5 - v_attempts));
+  end if;
 end;
 $$ language plpgsql;
 
--- เปลี่ยน PIN
-create or replace function change_pin(p_old_pin text, p_new_pin text)
-returns json
-security definer
-set search_path = public
-as $$
+-- 10.3 ฟังก์ชันตรวจสอบทอเคน
+create or replace function is_valid_session(p_token uuid)
+returns boolean as $$
 begin
-  if not verify_pin(p_old_pin) then
-    return json_build_object('success', false, 'message', 'Wrong current PIN');
-  end if;
-  if length(p_new_pin) != 6 or p_new_pin !~ '^[0-9]+$' then
-    return json_build_object('success', false, 'message', 'PIN must be exactly 6 digits');
-  end if;
-  update app_config set value = crypt(p_new_pin, gen_salt('bf')), updated_at = now()
-    where key = 'pin_hash';
-  return json_build_object('success', true, 'message', 'PIN changed successfully');
+  return exists (
+    select 1 from owner_sessions 
+    where id = p_token and expires_at > now()
+  );
 end;
-$$ language plpgsql;
+$$ language plpgsql stable security definer;
 
--- เพิ่มเทรดใหม่ (ต้องใส่ PIN)
-create or replace function add_trade(p_pin text, p_data jsonb)
+-- 10.4 ฟังก์ชันบันทึกข้อมูลเทรด
+create or replace function add_trade(p_token uuid, p_data jsonb)
 returns json
 security definer
-set search_path = public
+set search_path = public, extensions
 as $$
-declare
-  new_id uuid;
+declare new_id uuid;
 begin
-  if not verify_pin(p_pin) then
-    return json_build_object('success', false, 'message', 'Wrong PIN');
+  if not is_valid_session(p_token) then
+    return json_build_object('success', false, 'message', 'Session expired. Please re-authenticate.');
   end if;
 
   insert into trades (
-    pair, trade_date, time_entry, time_out, direction, setup_type,
-    entry_price, target_price, stop_loss, tick_size, result,
-    image_link, video_link, notes, tags
+    pair, trade_date, exit_date, time_entry, time_out, direction, setup_type,
+    entry_price, target_price, stop_loss, tick_size, lot_size, loss_amount,
+    result, image_link, video_link, notes, tags
   ) values (
     p_data->>'pair',
     (p_data->>'trade_date')::date,
+    nullif(p_data->>'exit_date','')::date,
     nullif(p_data->>'time_entry','')::time,
     nullif(p_data->>'time_out','')::time,
     nullif(p_data->>'direction',''),
@@ -258,60 +310,70 @@ begin
     nullif(p_data->>'target_price','')::numeric,
     nullif(p_data->>'stop_loss','')::numeric,
     coalesce(nullif(p_data->>'tick_size','')::numeric, 0.0001),
+    nullif(p_data->>'lot_size','')::numeric,
+    nullif(p_data->>'loss_amount','')::numeric,
     p_data->>'result',
     p_data->>'image_link',
     p_data->>'video_link',
     p_data->>'notes',
     coalesce((select array_agg(x) from jsonb_array_elements_text(p_data->'tags') x), '{}')
-  )
-  returning id into new_id;
+  ) returning id into new_id;
 
-  return json_build_object('success', true, 'message', 'Trade added', 'id', new_id);
+  insert into audit_log (action, target_id, target_pair)
+  values ('add_trade', new_id, p_data->>'pair');
+
+  return json_build_object('success', true, 'message', 'Trade added successfully');
 end;
 $$ language plpgsql;
 
--- แก้ไขเทรด (ต้องใส่ PIN)
-create or replace function edit_trade(p_pin text, p_id uuid, p_data jsonb)
+-- 10.5 ฟังก์ชันแก้ไขรายการเทรด
+create or replace function edit_trade(p_token uuid, p_id uuid, p_data jsonb)
 returns json
 security definer
-set search_path = public
+set search_path = public, extensions
 as $$
 begin
-  if not verify_pin(p_pin) then
-    return json_build_object('success', false, 'message', 'Wrong PIN');
+  if not is_valid_session(p_token) then
+    return json_build_object('success', false, 'message', 'Session expired. Please re-authenticate.');
   end if;
 
   update trades set
-    pair = p_data->>'pair',
-    trade_date = (p_data->>'trade_date')::date,
-    time_entry = nullif(p_data->>'time_entry','')::time,
-    time_out = nullif(p_data->>'time_out','')::time,
-    direction = nullif(p_data->>'direction',''),
-    setup_type = p_data->>'setup_type',
-    entry_price = nullif(p_data->>'entry_price','')::numeric,
+    pair         = p_data->>'pair',
+    trade_date   = (p_data->>'trade_date')::date,
+    exit_date    = nullif(p_data->>'exit_date','')::date,
+    time_entry   = nullif(p_data->>'time_entry','')::time,
+    time_out     = nullif(p_data->>'time_out','')::time,
+    direction    = nullif(p_data->>'direction',''),
+    setup_type   = nullif(p_data->>'setup_type',''),
+    entry_price  = nullif(p_data->>'entry_price','')::numeric,
     target_price = nullif(p_data->>'target_price','')::numeric,
-    stop_loss = nullif(p_data->>'stop_loss','')::numeric,
-    tick_size = coalesce(nullif(p_data->>'tick_size','')::numeric, 0.0001),
-    result = p_data->>'result',
-    image_link = p_data->>'image_link',
-    video_link = p_data->>'video_link',
-    notes = p_data->>'notes',
-    tags = coalesce((select array_agg(x) from jsonb_array_elements_text(p_data->'tags') x), '{}')
+    stop_loss    = nullif(p_data->>'stop_loss','')::numeric,
+    tick_size    = coalesce(nullif(p_data->>'tick_size','')::numeric, 0.0001),
+    lot_size     = nullif(p_data->>'lot_size','')::numeric,
+    loss_amount  = nullif(p_data->>'loss_amount','')::numeric,
+    result       = nullif(p_data->>'result',''),
+    image_link   = nullif(p_data->>'image_link',''),
+    video_link   = nullif(p_data->>'video_link',''),
+    notes        = nullif(p_data->>'notes',''),
+    tags         = coalesce((select array_agg(x) from jsonb_array_elements_text(p_data->'tags') x), '{}')
   where id = p_id;
 
-  return json_build_object('success', true, 'message', 'Trade updated');
+  insert into audit_log (action, target_id, target_pair)
+  values ('edit_trade', p_id, p_data->>'pair');
+
+  return json_build_object('success', true, 'message', 'Trade updated successfully');
 end;
 $$ language plpgsql;
 
--- ลบเทรด (ต้องใส่ PIN)
-create or replace function delete_trade(p_pin text, p_id uuid)
+-- 10.6 ฟังก์ชันลบรายการเทรด
+create or replace function delete_trade(p_token uuid, p_id uuid)
 returns json
 security definer
-set search_path = public
+set search_path = public, extensions
 as $$
 begin
-  if not verify_pin(p_pin) then
-    return json_build_object('success', false, 'message', 'Wrong PIN');
+  if not is_valid_session(p_token) then
+    return json_build_object('success', false, 'message', 'Session expired. Please re-authenticate.');
   end if;
 
   delete from trades where id = p_id;
@@ -319,84 +381,73 @@ begin
 end;
 $$ language plpgsql;
 
--- แก้ผลเทรดแบบเร็ว (inline quick-edit จากตาราง — ยังต้องใส่ PIN)
-create or replace function quick_update_result(p_pin text, p_id uuid, p_result text)
+-- 10.7 ฟังก์ชันปรับรหัสผ่าน PIN
+create or replace function change_pin(p_token uuid, p_old_pin text, p_new_pin text)
 returns json
 security definer
-set search_path = public
+set search_path = public, extensions
 as $$
+declare
+  v_stored_hash text;
 begin
-  if not verify_pin(p_pin) then
-    return json_build_object('success', false, 'message', 'Wrong PIN');
+  if not is_valid_session(p_token) then
+    return json_build_object('success', false, 'message', 'Session expired');
   end if;
-
-  update trades set result = p_result where id = p_id;
-  return json_build_object('success', true, 'message', 'Result updated');
+  
+  select value into v_stored_hash from app_config where key = 'pin_hash';
+  if v_stored_hash != crypt(p_old_pin, v_stored_hash) then
+    return json_build_object('success', false, 'message', 'Wrong current PIN');
+  end if;
+  if length(p_new_pin) != 6 or p_new_pin !~ '^[0-9]+$' then
+    return json_build_object('success', false, 'message', 'PIN must be exactly 6 digits');
+  end if;
+  
+  update app_config set value = crypt(p_new_pin, gen_salt('bf')), updated_at = now()
+    where key = 'pin_hash';
+  
+  delete from owner_sessions;
+  
+  return json_build_object('success', true, 'message', 'PIN changed successfully');
 end;
 $$ language plpgsql;
 
--- บันทึก pairs (ต้องใส่ PIN)
-create or replace function save_pairs(p_pin text, p_pairs text)
-returns json
-security definer
-set search_path = public
-as $$
+-- 10.8 ฟังก์ชันแผงสถิติเบ็ดเตล็ดอื่น ๆ
+create or replace function save_pairs(p_token uuid, p_pairs text)
+returns json security definer set search_path = public, extensions as $$
 begin
-  if not verify_pin(p_pin) then
-    return json_build_object('success', false, 'message', 'Wrong PIN');
-  end if;
+  if not is_valid_session(p_token) then return json_build_object('success', false, 'message', 'Session expired'); end if;
   update app_config set value = p_pairs, updated_at = now() where key = 'pairs';
   return json_build_object('success', true, 'message', 'Pairs saved');
-end;
-$$ language plpgsql;
+end; $$ language plpgsql;
 
--- บันทึก setup types (ต้องใส่ PIN)
-create or replace function save_setup_types(p_pin text, p_setups text)
-returns json
-security definer
-set search_path = public
-as $$
+create or replace function save_setup_types(p_token uuid, p_setups text)
+returns json security definer set search_path = public, extensions as $$
 begin
-  if not verify_pin(p_pin) then
-    return json_build_object('success', false, 'message', 'Wrong PIN');
-  end if;
+  if not is_valid_session(p_token) then return json_build_object('success', false, 'message', 'Session expired'); end if;
   update app_config set value = p_setups, updated_at = now() where key = 'setup_types';
   return json_build_object('success', true, 'message', 'Setup types saved');
-end;
-$$ language plpgsql;
+end; $$ language plpgsql;
 
--- บันทึก behavior tags (ต้องใส่ PIN)
-create or replace function save_behavior_tags(p_pin text, p_tags text)
-returns json
-security definer
-set search_path = public
-as $$
+create or replace function save_behavior_tags(p_token uuid, p_tags text)
+returns json security definer set search_path = public, extensions as $$
 begin
-  if not verify_pin(p_pin) then
-    return json_build_object('success', false, 'message', 'Wrong PIN');
-  end if;
+  if not is_valid_session(p_token) then return json_build_object('success', false, 'message', 'Session expired'); end if;
   update app_config set value = p_tags, updated_at = now() where key = 'behavior_tags';
   return json_build_object('success', true, 'message', 'Tags saved');
-end;
-$$ language plpgsql;
+end; $$ language plpgsql;
 
--- ================================================================
--- 8. VIEW สำหรับ Dashboard stats — คำนวณฝั่ง DB ให้เร็วและเบาบน client
--- ================================================================
+-- 11. DATABASE VIEWS
 create or replace view v_dashboard_overall as
 select
   count(*) as total,
-  count(*) filter (where result = 'Win') as win,
+  count(*) filter (where result = 'Win')  as win,
   count(*) filter (where result = 'Loss') as loss,
   count(*) filter (where result = 'Miss') as miss,
-  round(
-    100.0 * count(*) filter (where result = 'Win') /
-    nullif(count(*) filter (where result in ('Win','Loss')), 0), 1
-  ) as win_rate,
-  round(
-    coalesce(sum(case when result = 'Win' then rr when result = 'Loss' then -1 else 0 end), 0), 2
-  ) as total_rr,
-  coalesce(max(con_loss), 0) as max_con_loss
+  round(100.0 * count(*) filter (where result = 'Win') /
+    nullif(count(*) filter (where result in ('Win','Loss')), 0), 1) as win_rate,
+  round(coalesce(sum(case when result='Win' then rr when result='Loss' then -1 else 0 end),0), 2) as total_rr,
+  coalesce(max(con_loss), 0) as max_con_loss,
+  coalesce(sum(case when result='Loss' then coalesce(loss_amount,0) else 0 end), 0) as total_loss_amount
 from trades;
 
 create or replace view v_dashboard_by_pair as
@@ -405,46 +456,62 @@ select
   count(*) as total,
   count(*) filter (where result = 'Win') as win,
   count(*) filter (where result = 'Loss') as loss,
-  round(
-    100.0 * count(*) filter (where result = 'Win') /
-    nullif(count(*) filter (where result in ('Win','Loss')), 0), 1
-  ) as win_rate
-from trades
-group by pair;
+  round(100.0 * count(*) filter (where result = 'Win') /
+    nullif(count(*) filter (where result in ('Win','Loss')), 0), 1) as win_rate
+from trades group by pair;
 
 create or replace view v_dashboard_by_session as
 select
-  session,
-  count(*) as total,
+  session, count(*) as total,
   count(*) filter (where result = 'Win') as win,
   count(*) filter (where result = 'Loss') as loss
-from trades
-where session is not null
-group by session;
+from trades where session is not null group by session;
 
 create or replace view v_dashboard_by_setup as
 select
-  setup_type,
-  count(*) as total,
+  setup_type, count(*) as total,
   count(*) filter (where result = 'Win') as win,
   count(*) filter (where result = 'Loss') as loss
-from trades
-where setup_type is not null
-group by setup_type;
+from trades where setup_type is not null group by setup_type;
 
 create or replace view v_calendar_daily as
 select
-  trade_date,
-  count(*) as total,
+  trade_date, count(*) as total,
   count(*) filter (where result = 'Win') as win,
   count(*) filter (where result = 'Loss') as loss,
   count(*) filter (where result = 'Miss') as miss,
   round(coalesce(sum(case when result = 'Win' then rr when result = 'Loss' then -1 else 0 end), 0), 2) as net_rr
-from trades
-group by trade_date;
+from trades group by trade_date;
 
--- ================================================================
--- DONE — ตรวจสอบด้วย query นี้:
--- select * from app_config;
--- select * from trades limit 5;
--- ================================================================
+create or replace view v_by_day_of_week as
+select
+  extract(dow from trade_date)::int as dow,
+  to_char(trade_date, 'Day') as day_name,
+  count(*) as total,
+  count(*) filter (where result = 'Win')  as win,
+  count(*) filter (where result = 'Loss') as loss,
+  count(*) filter (where result = 'Miss') as miss,
+  round(100.0 * count(*) filter (where result = 'Win') /
+    nullif(count(*) filter (where result in ('Win','Loss')), 0), 1) as win_rate
+from trades where result is not null group by dow, day_name order by dow;
+
+create or replace view v_by_hour as
+select
+  extract(hour from time_entry)::int as hour, count(*) as total,
+  count(*) filter (where result = 'Win')  as win,
+  count(*) filter (where result = 'Loss') as loss,
+  round(100.0 * count(*) filter (where result = 'Win') /
+    nullif(count(*) filter (where result in ('Win','Loss')), 0), 1) as win_rate
+from trades where time_entry is not null and result is not null group by hour order by hour;
+
+-- GRANTS FOR VIEWS
+grant select on v_dashboard_overall to anon, authenticated;
+grant select on v_dashboard_by_pair to anon, authenticated;
+grant select on v_dashboard_by_session to anon, authenticated;
+grant select on v_dashboard_by_setup to anon, authenticated;
+grant select on v_calendar_daily to anon, authenticated;
+grant select on v_by_day_of_week to anon, authenticated;
+grant select on v_by_hour to anon, authenticated;
+
+-- DONE
+comment on table trades is 'TradeLog Production Master Database v3.0.0';

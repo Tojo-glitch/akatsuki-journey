@@ -1,42 +1,42 @@
-// ── useAuth — Phase 2A Route Guard ──────────────────────────────
-// จัดการ "owner session" แยกจาก PIN modal
-// Owner = คนที่ unlock ด้วย PIN แล้ว (15 นาที)
-// Public = ทุกคนที่เปิดเว็บ (อ่านได้อย่างเดียว)
-
 import { useState, useCallback, useEffect } from 'react'
 
-const SESSION_KEY = 'tj_owner_session'
-const TTL = 15 * 60 * 1000 // 15 นาที
+const TOKEN_KEY = 'tj_owner_token'
+const REVIEWER_KEY = 'tj_reviewer_token'
 
 export function getOwnerSession() {
   try {
-    const raw = sessionStorage.getItem(SESSION_KEY)
+    const raw = sessionStorage.getItem(TOKEN_KEY)
     if (!raw) return null
-    const { pin, expires } = JSON.parse(raw)
-    if (Date.now() > expires) {
-      sessionStorage.removeItem(SESSION_KEY)
-      return null
-    }
-    return pin
+    return raw
   } catch { return null }
 }
 
-export function setOwnerSession(pin) {
-  sessionStorage.setItem(SESSION_KEY, JSON.stringify({
-    pin,
-    expires: Date.now() + TTL,
-  }))
+export function getReviewerSession() {
+  try {
+    const raw = sessionStorage.getItem(REVIEWER_KEY)
+    if (!raw) return null
+    return raw
+  } catch { return null }
+}
+
+export function setOwnerSession(token) {
+  sessionStorage.setItem(TOKEN_KEY, token)
+}
+
+export function setReviewerSession(token) {
+  sessionStorage.setItem(REVIEWER_KEY, token)
 }
 
 export function clearOwnerSession() {
-  sessionStorage.removeItem(SESSION_KEY)
+  sessionStorage.removeItem(TOKEN_KEY)
 }
 
-// หน้าที่ต้องเป็น owner ถึงเข้าได้
-export const PROTECTED_PAGES = ['add', 'settings']
+export function clearReviewerSession() {
+  sessionStorage.removeItem(REVIEWER_KEY)
+}
 
-// หน้าที่ทุกคนเข้าได้
-export const PUBLIC_PAGES = ['dashboard', 'history', 'calendar', 'public']
+export const PROTECTED_PAGES = ['add', 'settings']
+export const PUBLIC_PAGES = ['dashboard', 'history']
 
 export function isProtectedPage(page) {
   return PROTECTED_PAGES.includes(page)
@@ -44,25 +44,40 @@ export function isProtectedPage(page) {
 
 export function useAuth() {
   const [isOwner, setIsOwner] = useState(() => !!getOwnerSession())
+  const [isReviewer, setIsReviewer] = useState(() => !!getReviewerSession())
 
-  // Re-check ทุก 30 วินาที (กรณี session หมดอายุระหว่างใช้งาน)
   useEffect(() => {
+    // ── ตรวจสอบลิ้งก์ตรวจพอร์ตอัจฉริยะ ( traling.app/history?review=xxxxxxx ) ──
+    const params = new URLSearchParams(window.location.search)
+    const reviewToken = params.get('review')
+    
+    if (reviewToken) {
+      setReviewerSession(reviewToken)
+      setIsReviewer(true)
+      
+      // ปัดกวาดแถบลลิ้งก์ URL ด้านบนให้คลีนสวยงามไร้รอยค้างของพารามิเตอร์ทันที
+      window.history.replaceState({}, document.title, window.location.pathname)
+    }
+
     const interval = setInterval(() => {
-      const has = !!getOwnerSession()
-      setIsOwner(prev => prev !== has ? has : prev)
-    }, 30_000)
+      setIsOwner(!!getOwnerSession())
+      setIsReviewer(!!getReviewerSession())
+    }, 15_000)
+    
     return () => clearInterval(interval)
   }, [])
 
-  const unlock = useCallback((pin) => {
-    setOwnerSession(pin)
+  const unlock = useCallback((token) => {
+    setOwnerSession(token)
     setIsOwner(true)
   }, [])
 
   const lock = useCallback(() => {
     clearOwnerSession()
+    clearReviewerSession()
     setIsOwner(false)
+    setIsReviewer(false)
   }, [])
 
-  return { isOwner, unlock, lock }
+  return { isOwner, isReviewer, unlock, lock }
 }
