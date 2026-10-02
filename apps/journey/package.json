@@ -6,9 +6,15 @@
   "packageManager": "pnpm@12.3.4",
   "scripts": {
     "dev": "pnpm --filter @kecha/journey dev",
-    "dev:all": "turbo run dev",
-    "build": "turbo run build",
+    "build": "pnpm --filter @kecha/journey build",
     "check": "tsc --noEmit"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "tesseract.js",
+      "tesseract.js-core"
+    ]
   },
   "devDependencies": {
     "@types/node": "^26.6.3",

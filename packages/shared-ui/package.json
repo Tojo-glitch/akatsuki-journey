@@ -1,0 +1,15 @@
+{
+  "name": "@kecha/shared-ui",
+  "version": "1.0.0",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "private": true,
+  "dependencies": {
+    "@kecha/shared-types": "workspace:*",
+    "@kecha/shared-utils": "workspace:*",
+    "clsx": "^2.1.1",
+    "lucide-react": "^1.49.0",
+    "react": "^18.3.0",
+    "react-dom": "^18.3.0"
+  }
+}

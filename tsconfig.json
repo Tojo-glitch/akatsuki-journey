@@ -1,0 +1,31 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "useDefineForClassFields": true,
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "skipLibCheck": true,
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": false,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "baseUrl": ".",
+    "paths": {
+      "@kecha/shared-types": ["packages/shared-types/src/index.ts"],
+      "@kecha/shared-types/*": ["packages/shared-types/src/*"],
+      "@kecha/shared-utils": ["packages/shared-utils/src/index.ts"],
+      "@kecha/shared-utils/*": ["packages/shared-utils/src/*"],
+      "@kecha/shared-ui": ["packages/shared-ui/src/index.ts"],
+      "@kecha/shared-ui/*": ["packages/shared-ui/src/*"],
+      "@kecha/shared-auth": ["packages/shared-auth/src/index.ts"],
+      "@kecha/shared-auth/*": ["packages/shared-auth/src/*"]
+    }
+  },
+  "include": ["packages", "apps"]
+}
