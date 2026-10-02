@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { ArrowLeft, Zap } from 'lucide-react';
 import { TradeJournalEntry, TradeResult } from '@kecha/shared-types';
 import { useSettingsStore } from '../store/useSettingsStore';
-import { DateTimePicker, DropzoneUpload, CustomSelect } from '@kecha/shared-ui';
+import { DateTimePicker, DropzoneUpload, CustomSelect, LoadingButton } from '@kecha/shared-ui';
 import { fileToBase64, compressImage, parseChartImageOCR, determineSessionByTime } from '@kecha/shared-utils';
 
 interface RecordTradePageProps {
@@ -31,8 +31,7 @@ export function RecordTradePage({ onBack, onSave }: RecordTradePageProps) {
   const [statusText, setStatusText] = useState('');
 
   const handleDateTimeChange = (newDate: string, newTime: string) => {
-    setDate(newDate);
-    setTime(newTime);
+    setDate(newDate); setTime(newTime);
     const hour = parseInt(newTime.split(':')[0], 10);
     const autoSession = determineSessionByTime(hour, settings.sessionTimes);
     if (activeSessions.includes(autoSession)) setSession(autoSession);
@@ -55,9 +54,9 @@ export function RecordTradePage({ onBack, onSave }: RecordTradePageProps) {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleExecuteSave = async () => {
     if (!imageUrl) return;
+    await new Promise((resolve) => setTimeout(resolve, 600));
     let finalR = parseFloat(rInput) || 0;
     if (result === 'win' && finalR <= 0) finalR = Math.abs(finalR) || 1;
     if (result === 'loss' && finalR >= 0) finalR = -Math.abs(finalR) || -1;
@@ -65,7 +64,7 @@ export function RecordTradePage({ onBack, onSave }: RecordTradePageProps) {
       date: `${date} ${time}`, pair: pair.toUpperCase().trim(), timeframe, session, setup,
       direction, result, rMultiple: result === 'breakeven' ? 0 : finalR, imageUrl, notes
     });
-    onBack();
+    setTimeout(() => onBack(), 700);
   };
 
   return (
@@ -79,7 +78,7 @@ export function RecordTradePage({ onBack, onSave }: RecordTradePageProps) {
         <p style={{ margin: '4px 0 0', fontSize: '0.88rem', color: '#64748b' }}>Full Focus Speed Log & Chart Analytics</p>
       </div>
 
-      <form onSubmit={handleSubmit} style={{ display: 'grid', gridTemplateColumns: '1.1fr 1fr', gap: '28px', alignItems: 'start' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1.1fr 1fr', gap: '28px', alignItems: 'start' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
           <div>
             <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#0f172a', marginBottom: '8px' }}>Date & Execution Time</label>
@@ -101,7 +100,7 @@ export function RecordTradePage({ onBack, onSave }: RecordTradePageProps) {
             <CustomSelect label="Trade Outcome" value={result} options={[{ value: 'win', label: 'Win' }, { value: 'loss', label: 'Loss' }, { value: 'breakeven', label: 'Breakeven' }]} onChange={(v) => setResult(v as TradeResult)} />
             <div>
               <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: '#475569', marginBottom: '6px' }}>Realized R:R</label>
-              <input type="text" value={rInput} onChange={(e) => setRInput(e.target.value)} placeholder="e.g. 2.5 or -1.0" style={{ width: '100%', boxSizing: 'border-box', padding: '11px 16px', borderRadius: '16px', border: '1px solid #e2e8f0', fontSize: '0.88rem', fontWeight: 600 }} />
+              <input type="text" value={rInput} onChange={(e) => setRInput(e.target.value)} style={{ width: '100%', boxSizing: 'border-box', padding: '11px 16px', borderRadius: '16px', border: '1px solid #e2e8f0', fontSize: '0.88rem', fontWeight: 600 }} />
             </div>
           </div>
         </div>
@@ -114,14 +113,20 @@ export function RecordTradePage({ onBack, onSave }: RecordTradePageProps) {
 
           <div>
             <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: '#475569', marginBottom: '6px' }}>Analysis & Execution Notes</label>
-            <textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="e.g. Sweep of Asian low into London session Wyckoff accumulation..." style={{ width: '100%', boxSizing: 'border-box', padding: '12px 16px', borderRadius: '16px', border: '1px solid #e2e8f0', fontSize: '0.88rem', resize: 'none' }} />
+            <textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="e.g. Sweep of Asian low into London session..." style={{ width: '100%', boxSizing: 'border-box', padding: '12px 16px', borderRadius: '16px', border: '1px solid #e2e8f0', fontSize: '0.88rem', resize: 'none' }} />
           </div>
 
-          <button type="submit" disabled={!imageUrl} style={{ backgroundColor: imageUrl ? '#0f172a' : '#cbd5e1', color: '#ffffff', border: 'none', borderRadius: '18px', padding: '15px', fontSize: '1rem', fontWeight: 700, cursor: imageUrl ? 'pointer' : 'not-allowed', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', boxShadow: '0 4px 14px rgba(15, 23, 42, 0.15)' }}>
-            <Zap size={18} /> Record Live Execution
-          </button>
+          <LoadingButton
+            onAction={handleExecuteSave}
+            disabled={!imageUrl}
+            pendingLabel="Recording Execution..."
+            successLabel="Execution Saved ✓"
+            style={{ width: '100%', padding: '14px', borderRadius: '18px' }}
+          >
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}><Zap size={18} /> Record Live Execution</span>
+          </LoadingButton>
         </div>
-      </form>
+      </div>
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useJourneyStore } from './store/useJourneyStore';
 import { useJournalStore } from './store/useJournalStore';
 import { useAuthStore } from '@kecha/shared-auth';
@@ -17,20 +17,25 @@ import { RecordTradePage } from './pages/RecordTradePage';
 import { RecordPatternPage } from './pages/RecordPatternPage';
 import { EditTradePage } from './pages/EditTradePage';
 import { EditPatternPage } from './pages/EditPatternPage';
+import { BatchUploadPage } from './pages/BatchUploadPage';
 import { ChartEntry, TradeJournalEntry, JourneyLevel } from '@kecha/shared-types';
 
 export function App() {
   const [currentTab, setCurrentTab] = useState<MainTab>('dashboard');
   const [currentLevel, setCurrentLevel] = useState<JourneyLevel>(1);
-  const [activePage, setActivePage] = useState<'main' | 'record-trade' | 'record-pattern' | 'edit-trade' | 'edit-pattern'>('main');
+  const [activePage, setActivePage] = useState<'main' | 'record-trade' | 'record-pattern' | 'edit-trade' | 'edit-pattern' | 'batch-pattern'>('main');
   const [isPinModalOpen, setIsPinModalOpen] = useState(false);
   const [activeLightboxEntry, setActiveLightboxEntry] = useState<ChartEntry | null>(null);
   const [editingPatternEntry, setEditingPatternEntry] = useState<ChartEntry | null>(null);
   const [editingTradeEntry, setEditingTradeEntry] = useState<TradeJournalEntry | null>(null);
 
   const { isOwner } = useAuthStore();
-  const { entries, activeCategoryFilter, addEntry, updateEntry, deleteEntry, setCategoryFilter, getStats } = useJourneyStore();
+  const { entries, activeCategoryFilter, updateEntry, deleteEntry, setCategoryFilter, getStats, initStorage } = useJourneyStore();
   const { addTrade, updateTrade } = useJournalStore();
+
+  useEffect(() => {
+    initStorage();
+  }, [initStorage]);
 
   const stats = getStats();
   const filteredEntries = activeCategoryFilter === 'all'
@@ -52,33 +57,24 @@ export function App() {
         )}
 
         {activePage === 'record-pattern' && (
-          <RecordPatternPage onBack={() => setActivePage('main')} onSave={addEntry} />
+          <RecordPatternPage onBack={() => setActivePage('main')} onOpenBatch={() => setActivePage('batch-pattern')} />
+        )}
+
+        {activePage === 'batch-pattern' && (
+          <BatchUploadPage onBack={() => setActivePage('main')} />
         )}
 
         {activePage === 'edit-trade' && editingTradeEntry && (
-          <EditTradePage
-            trade={editingTradeEntry}
-            onBack={() => { setEditingTradeEntry(null); setActivePage('main'); }}
-            onSave={updateTrade}
-          />
+          <EditTradePage trade={editingTradeEntry} onBack={() => { setEditingTradeEntry(null); setActivePage('main'); }} onSave={updateTrade} />
         )}
 
         {activePage === 'edit-pattern' && editingPatternEntry && (
-          <EditPatternPage
-            entry={editingPatternEntry}
-            onBack={() => { setEditingPatternEntry(null); setActivePage('main'); }}
-            onSave={updateEntry}
-          />
+          <EditPatternPage entry={editingPatternEntry} onBack={() => { setEditingPatternEntry(null); setActivePage('main'); }} onSave={updateEntry} />
         )}
 
         {activePage === 'main' && (
           <>
-            <NavigationTabs
-              currentTab={currentTab}
-              onSelectTab={setCurrentTab}
-              currentLevel={currentLevel}
-              onSelectLevel={setCurrentLevel}
-            />
+            <NavigationTabs currentTab={currentTab} onSelectTab={setCurrentTab} currentLevel={currentLevel} onSelectLevel={setCurrentLevel} />
 
             {currentTab === 'dashboard' && <DashboardView />}
 
@@ -86,24 +82,11 @@ export function App() {
               currentLevel === 1 ? (
                 <>
                   <LevelOverviewCard stats={stats} />
-                  <CategoryProgressGrid
-                    stats={stats}
-                    selectedCategory={activeCategoryFilter}
-                    onSelectCategory={setCategoryFilter}
-                  />
+                  <CategoryProgressGrid stats={stats} selectedCategory={activeCategoryFilter} onSelectCategory={setCategoryFilter} />
                   <div style={{ marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: '#0f172a' }}>
-                      Level 1 Pattern Records ({filteredEntries.length})
-                    </h3>
+                    <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: '#0f172a' }}>Level 1 Pattern Records ({filteredEntries.length})</h3>
                   </div>
-                  <ChartGallery
-                    entries={filteredEntries}
-                    isOwner={isOwner}
-                    onView={(entry) => setActiveLightboxEntry(entry)}
-                    onEdit={(entry) => { setEditingPatternEntry(entry); setActivePage('edit-pattern'); }}
-                    onDelete={deleteEntry}
-                    onOpenAddModal={() => setActivePage('record-pattern')}
-                  />
+                  <ChartGallery entries={filteredEntries} isOwner={isOwner} onView={(entry) => setActiveLightboxEntry(entry)} onEdit={(entry) => { setEditingPatternEntry(entry); setActivePage('edit-pattern'); }} onDelete={deleteEntry} onOpenAddModal={() => setActivePage('record-pattern')} />
                 </>
               ) : (
                 <LevelPlaceholder level={currentLevel} />
@@ -111,10 +94,7 @@ export function App() {
             )}
 
             {currentTab === 'journal' && (
-              <JournalView
-                onOpenLogModal={() => setActivePage('record-trade')}
-                onEditTrade={(trade) => { setEditingTradeEntry(trade); setActivePage('edit-trade'); }}
-              />
+              <JournalView onOpenLogModal={() => setActivePage('record-trade')} onEditTrade={(trade) => { setEditingTradeEntry(trade); setActivePage('edit-trade'); }} />
             )}
             {currentTab === 'settings' && <SettingsView />}
           </>

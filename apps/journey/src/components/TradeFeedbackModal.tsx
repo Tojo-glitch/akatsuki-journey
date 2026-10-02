@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Modal, Badge } from '@kecha/shared-ui';
+import { useState } from 'react';
+import { Modal, Badge, LoadingButton } from '@kecha/shared-ui';
 import { TradeJournalEntry } from '@kecha/shared-types';
 import { useJournalStore } from '../store/useJournalStore';
 import { MessageSquare, Send } from 'lucide-react';
@@ -17,9 +17,9 @@ export function TradeFeedbackModal({ trade, onClose }: TradeFeedbackModalProps) 
   if (!trade) return null;
   const comments = getCommentsByTrade(trade.id);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSendFeedback = async () => {
     if (!content.trim()) return;
+    await new Promise((resolve) => setTimeout(resolve, 400));
     addComment(trade.id, authorName, content);
     setContent('');
   };
@@ -65,7 +65,7 @@ export function TradeFeedbackModal({ trade, onClose }: TradeFeedbackModalProps) 
             )}
           </div>
 
-          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             <input
               type="text"
               placeholder="Your Name (e.g. Mentor Kecha)"
@@ -79,14 +79,19 @@ export function TradeFeedbackModal({ trade, onClose }: TradeFeedbackModalProps) 
                 placeholder="Write helpful critique or note for improvement..."
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
-                required
                 style={{ flex: 1, padding: '8px 12px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }}
               />
-              <button type="submit" style={{ background: '#0f172a', color: '#ffffff', border: 'none', borderRadius: '10px', padding: '0 16px', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', fontWeight: 600, fontSize: '0.85rem' }}>
-                <Send size={14} /> Send
-              </button>
+              <LoadingButton
+                onAction={handleSendFeedback}
+                disabled={!content.trim()}
+                pendingLabel="Sending..."
+                successLabel="Sent ✓"
+                style={{ padding: '8px 16px', borderRadius: '10px' }}
+              >
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}><Send size={14} /> Send</span>
+              </LoadingButton>
             </div>
-          </form>
+          </div>
         </div>
       </div>
     </Modal>

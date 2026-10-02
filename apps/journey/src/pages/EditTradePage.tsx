@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { ArrowLeft, Save } from 'lucide-react';
 import { TradeJournalEntry, TradeResult } from '@kecha/shared-types';
 import { useSettingsStore } from '../store/useSettingsStore';
-import { DateTimePicker, DropzoneUpload, CustomSelect } from '@kecha/shared-ui';
+import { DateTimePicker, DropzoneUpload, CustomSelect, LoadingButton } from '@kecha/shared-ui';
 import { fileToBase64, compressImage, parseChartImageOCR, determineSessionByTime } from '@kecha/shared-utils';
 
 interface EditTradePageProps {
@@ -56,9 +56,9 @@ export function EditTradePage({ trade, onBack, onSave }: EditTradePageProps) {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleExecuteSave = async () => {
     if (!imageUrl) return;
+    await new Promise((resolve) => setTimeout(resolve, 600));
     let finalR = parseFloat(rInput) || 0;
     if (result === 'win' && finalR <= 0) finalR = Math.abs(finalR) || 1;
     if (result === 'loss' && finalR >= 0) finalR = -Math.abs(finalR) || -1;
@@ -66,7 +66,7 @@ export function EditTradePage({ trade, onBack, onSave }: EditTradePageProps) {
       date: `${date} ${time}`, pair: pair.toUpperCase().trim(), timeframe, session, setup,
       direction, result, rMultiple: result === 'breakeven' ? 0 : finalR, imageUrl, notes
     });
-    onBack();
+    setTimeout(() => onBack(), 700);
   };
 
   return (
@@ -77,10 +77,10 @@ export function EditTradePage({ trade, onBack, onSave }: EditTradePageProps) {
 
       <div style={{ marginBottom: '24px' }}>
         <h2 style={{ margin: 0, fontSize: '1.6rem', fontWeight: 800, color: '#0f172a' }}>Edit Trade: {trade.pair}</h2>
-        <p style={{ margin: '4px 0 0', fontSize: '0.88rem', color: '#64748b' }}>Update execution parameters, analysis notes, or replace chart image</p>
+        <p style={{ margin: '4px 0 0', fontSize: '0.88rem', color: '#64748b' }}>Update execution parameters or replace chart image</p>
       </div>
 
-      <form onSubmit={handleSubmit} style={{ display: 'grid', gridTemplateColumns: '1.1fr 1fr', gap: '28px', alignItems: 'start' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1.1fr 1fr', gap: '28px', alignItems: 'start' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
           <div>
             <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#0f172a', marginBottom: '8px' }}>Date & Execution Time</label>
@@ -118,11 +118,17 @@ export function EditTradePage({ trade, onBack, onSave }: EditTradePageProps) {
             <textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Notes..." style={{ width: '100%', boxSizing: 'border-box', padding: '12px 16px', borderRadius: '16px', border: '1px solid #e2e8f0', fontSize: '0.88rem', resize: 'none' }} />
           </div>
 
-          <button type="submit" disabled={!imageUrl} style={{ backgroundColor: '#0f172a', color: '#ffffff', border: 'none', borderRadius: '18px', padding: '15px', fontSize: '1rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', boxShadow: '0 4px 14px rgba(15, 23, 42, 0.15)' }}>
-            <Save size={18} /> Save Changes
-          </button>
+          <LoadingButton
+            onAction={handleExecuteSave}
+            disabled={!imageUrl}
+            pendingLabel="Saving Changes..."
+            successLabel="Changes Saved ✓"
+            style={{ width: '100%', padding: '14px', borderRadius: '18px' }}
+          >
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}><Save size={18} /> Save Changes</span>
+          </LoadingButton>
         </div>
-      </form>
+      </div>
     </div>
   );
 }

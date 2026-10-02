@@ -6,6 +6,8 @@ export interface ExtractedChartData {
   timeframe?: string;
   session?: string;
   rMultiple?: number;
+  occurrences?: number;
+  setupLabel?: string;
   rawText?: string;
 }
 
@@ -17,7 +19,6 @@ export const determineSessionByTime = (hour: number, sessionConfigs?: SessionTim
     { name: 'London', startHour: 14, endHour: 22 },
     { name: 'New York', startHour: 19, endHour: 3 }
   ];
-
   for (const s of configs) {
     if (s.startHour <= s.endHour) {
       if (hour >= s.startHour && hour < s.endHour) return s.name;
@@ -52,6 +53,15 @@ export const parseChartImageOCR = async (imageSrc: string, sessionConfigs?: Sess
         : rawTf.endsWith('M') ? `M${rawTf.replace('M', '')}` : rawTf.endsWith('H') ? `H${rawTf.replace('H', '')}` : 'M15';
     }
 
+    const rangeMatch = text.match(/100\/(\d+)(?:[-,](\d+))?(?:[-,](\d+))?/i);
+    if (rangeMatch) {
+      const start = parseInt(rangeMatch[1], 10);
+      const end = rangeMatch[3] ? parseInt(rangeMatch[3], 10) : rangeMatch[2] ? parseInt(rangeMatch[2], 10) : start;
+      const count = Math.max(1, end - start + 1);
+      result.occurrences = count;
+      result.setupLabel = rangeMatch[0];
+    }
+
     const timeMatch = text.match(/\b([0-2]?[0-9]):([0-5][0-9])\b/);
     if (timeMatch) {
       const hour = parseInt(timeMatch[1], 10);
@@ -61,14 +71,12 @@ export const parseChartImageOCR = async (imageSrc: string, sessionConfigs?: Sess
     const rrMatch = text.match(/(?:Risk\/Reward|Reward|RR|Ratio|Target)[:\s]*([0-9.]+)/i);
     if (rrMatch) {
       const parsedR = parseFloat(rrMatch[1]);
-      if (!isNaN(parsedR) && parsedR > 0 && parsedR < 50) {
-        result.rMultiple = parsedR;
-      }
+      if (!isNaN(parsedR) && parsedR > 0 && parsedR < 50) result.rMultiple = parsedR;
     }
 
     return result;
   } catch (err) {
-    console.warn('OCR Parse failed, falling back to manual entry:', err);
+    console.warn('OCR Parse error:', err);
     return {};
   }
 };

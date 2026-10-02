@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ChartEntry } from '@kecha/shared-types';
-import { Badge, TablePagination } from '@kecha/shared-ui';
+import { Badge, TablePagination, ConfirmDeleteModal } from '@kecha/shared-ui';
 import { Trash2, Edit3, Search, ImageOff, Eye } from 'lucide-react';
 
 interface ChartGalleryProps {
@@ -28,6 +28,7 @@ export function ChartGallery({
   onOpenAddModal
 }: ChartGalleryProps) {
   const [search, setSearch] = useState('');
+  const [deletingEntry, setDeletingEntry] = useState<ChartEntry | null>(null);
   const [page, setPage] = useState(1);
   const pageSize = 8;
 
@@ -105,7 +106,7 @@ export function ChartGallery({
                     {isOwner && (
                       <>
                         <button onClick={() => onEdit(entry)} title="Edit Pattern (Full Page)" type="button" style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', padding: '4px' }}><Edit3 size={15} /></button>
-                        <button onClick={() => onDelete(entry.id)} title="Delete Pattern" type="button" style={{ background: 'transparent', border: 'none', color: '#cbd5e1', cursor: 'pointer', padding: '4px' }} onMouseEnter={(e) => (e.currentTarget.style.color = '#ef4444')} onMouseLeave={(e) => (e.currentTarget.style.color = '#cbd5e1')}><Trash2 size={15} /></button>
+                        <button onClick={() => setDeletingEntry(entry)} title="Delete Pattern" type="button" style={{ background: 'transparent', border: 'none', color: '#cbd5e1', cursor: 'pointer', padding: '4px' }} onMouseEnter={(e) => (e.currentTarget.style.color = '#ef4444')} onMouseLeave={(e) => (e.currentTarget.style.color = '#cbd5e1')}><Trash2 size={15} /></button>
                       </>
                     )}
                   </div>
@@ -116,6 +117,12 @@ export function ChartGallery({
         </table>
       </div>
       <TablePagination currentPage={page} totalItems={filtered.length} pageSize={pageSize} onPageChange={setPage} />
+      <ConfirmDeleteModal
+        isOpen={!!deletingEntry}
+        itemTitle={deletingEntry ? deletingEntry.pair : ''}
+        onClose={() => setDeletingEntry(null)}
+        onConfirm={() => deletingEntry && onDelete(deletingEntry.id)}
+      />
     </div>
   );
 }

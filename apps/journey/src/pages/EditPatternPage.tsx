@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { ArrowLeft, Save } from 'lucide-react';
 import { ChartCategory, ChartEntry, Timeframe, TradingSession } from '@kecha/shared-types';
 import { useSettingsStore } from '../store/useSettingsStore';
-import { DropzoneUpload, CustomSelect } from '@kecha/shared-ui';
+import { DropzoneUpload, CustomSelect, LoadingButton } from '@kecha/shared-ui';
 import { fileToBase64, compressImage, parseChartImageOCR } from '@kecha/shared-utils';
 
 interface EditPatternPageProps {
@@ -48,11 +48,11 @@ export function EditPatternPage({ entry, onBack, onSave }: EditPatternPageProps)
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleExecuteSave = async () => {
     if (!imageUrl) return;
+    await new Promise((resolve) => setTimeout(resolve, 600));
     onSave(entry.id, { category, pair: pair.toUpperCase().trim(), timeframe, session, imageUrl, notes });
-    onBack();
+    setTimeout(() => onBack(), 700);
   };
 
   return (
@@ -66,7 +66,7 @@ export function EditPatternPage({ entry, onBack, onSave }: EditPatternPageProps)
         <p style={{ margin: '4px 0 0', fontSize: '0.88rem', color: '#64748b' }}>Update pattern classification or replace chart screenshot</p>
       </div>
 
-      <form onSubmit={handleSubmit} style={{ display: 'grid', gridTemplateColumns: '1fr 1.1fr', gap: '28px', alignItems: 'start' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.1fr', gap: '28px', alignItems: 'start' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <CustomSelect label="Market Structure Category" value={category} options={CATEGORIES} onChange={(v) => setCategory(v as ChartCategory)} />
           <CustomSelect label="Asset / Pair" value={pair} options={activePairs} onChange={setPair} />
@@ -82,11 +82,17 @@ export function EditPatternPage({ entry, onBack, onSave }: EditPatternPageProps)
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <DropzoneUpload imageUrl={imageUrl} onFileSelect={handleFileUpload} onClear={() => setImageUrl('')} statusText={statusText} />
-          <button type="submit" disabled={!imageUrl} style={{ backgroundColor: '#0f172a', color: '#ffffff', border: 'none', borderRadius: '18px', padding: '14px', fontSize: '0.98rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', boxShadow: '0 4px 14px rgba(15, 23, 42, 0.15)' }}>
-            <Save size={18} /> Save Changes
-          </button>
+          <LoadingButton
+            onAction={handleExecuteSave}
+            disabled={!imageUrl}
+            pendingLabel="Updating Pattern..."
+            successLabel="Pattern Updated ✓"
+            style={{ width: '100%', padding: '14px', borderRadius: '18px' }}
+          >
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}><Save size={18} /> Save Changes</span>
+          </LoadingButton>
         </div>
-      </form>
+      </div>
     </div>
   );
 }

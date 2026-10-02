@@ -7,3 +7,6 @@ export * from './DropzoneUpload';
 export * from './CustomSelect';
 export * from './ToggleSwitch';
 export * from './TablePagination';
+export * from './ConfirmDeleteModal';
+export * from './LoadingButton';
+export * from './PinOtpInput';
