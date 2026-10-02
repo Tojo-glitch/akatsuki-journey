@@ -6,7 +6,7 @@
   "packageManager": "pnpm@9.15.4",
   "scripts": {
     "dev": "pnpm --filter @kecha/journey dev",
-    "build": "pnpm --filter @kecha/journey build",
+    "build": "cd apps/journey && npx vite build",
     "check": "tsc --noEmit"
   },
   "pnpm": {
