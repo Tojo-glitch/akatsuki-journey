@@ -8,10 +8,19 @@ export interface ExtractedChartData {
   rMultiple?: number;
   occurrences?: number;
   setupLabel?: string;
-  rawText?: string;
 }
 
-const COMMON_PAIRS = ['XAUUSD', 'GOLD', 'EURUSD', 'GBPUSD', 'USDJPY', 'BTCUSD', 'ETHUSD', 'US30', 'NAS100', 'AUDUSD', 'USDCAD', 'USDCHF'];
+const KNOWN_PAIRS = ['EURUSD', 'GBPUSD', 'XAUUSD', 'USDJPY', 'BTCUSD', 'ETHUSD', 'US30', 'NAS100', 'AUDUSD', 'USDCAD', 'USDCHF', 'NZDUSD'];
+
+export const normalizePair = (raw: string): string => {
+  const cleaned = raw.toUpperCase().replace(/(OANDA|FX|BINANCE|FOREXCOM|INDEX|CAPITALCOM)[:/_\s.-]/g, '').replace(/[^A-Z0-9]/g, '');
+  if (cleaned.includes('GOLD')) return 'XAUUSD';
+  for (const p of KNOWN_PAIRS) {
+    if (cleaned.includes(p)) return p;
+  }
+  const match = cleaned.match(/([A-Z]{6})/);
+  return match ? match[1] : '';
+};
 
 export const determineSessionByTime = (hour: number, sessionConfigs?: SessionTimeConfig[]): string => {
   const configs = sessionConfigs || [
@@ -35,48 +44,31 @@ export const parseChartImageOCR = async (imageSrc: string, sessionConfigs?: Sess
     const { data: { text } } = await worker.recognize(imageSrc);
     await worker.terminate();
 
-    const result: ExtractedChartData = { rawText: text };
-    const upper = text.toUpperCase();
+    const result: ExtractedChartData = {};
+    const detectedPair = normalizePair(text);
+    if (detectedPair) result.pair = detectedPair;
 
-    for (const p of COMMON_PAIRS) {
-      if (upper.includes(p)) {
-        result.pair = p === 'GOLD' ? 'XAUUSD' : p;
-        break;
-      }
-    }
-
-    const tfMatch = upper.match(/\b(15M|1M|5M|30M|1H|4H|1D|M15|M1|M5|M30|H1|H4|D1)\b/i);
+    const tfMatch = text.toUpperCase().match(/\b(15M|1M|5M|30M|1H|4H|1D|M15|M1|M5|M30|H1|H4|D1)\b/);
     if (tfMatch) {
-      const rawTf = tfMatch[1].toUpperCase();
-      result.timeframe = rawTf.startsWith('M') || rawTf.startsWith('H') || rawTf.startsWith('D')
-        ? rawTf
-        : rawTf.endsWith('M') ? `M${rawTf.replace('M', '')}` : rawTf.endsWith('H') ? `H${rawTf.replace('H', '')}` : 'M15';
+      const raw = tfMatch[1];
+      result.timeframe = raw.startsWith('M') || raw.startsWith('H') || raw.startsWith('D') ? raw : `M${raw.replace('M', '')}`;
     }
 
-    const rangeMatch = text.match(/100\/(\d+)(?:[-,](\d+))?(?:[-,](\d+))?/i);
+    const rangeMatch = text.match(/100\/(\d+)(?:[-,](\d+))?/i);
     if (rangeMatch) {
       const start = parseInt(rangeMatch[1], 10);
-      const end = rangeMatch[3] ? parseInt(rangeMatch[3], 10) : rangeMatch[2] ? parseInt(rangeMatch[2], 10) : start;
-      const count = Math.max(1, end - start + 1);
-      result.occurrences = count;
+      const end = rangeMatch[2] ? parseInt(rangeMatch[2], 10) : start;
+      result.occurrences = Math.max(1, end - start + 1);
       result.setupLabel = rangeMatch[0];
     }
 
     const timeMatch = text.match(/\b([0-2]?[0-9]):([0-5][0-9])\b/);
     if (timeMatch) {
-      const hour = parseInt(timeMatch[1], 10);
-      result.session = determineSessionByTime(hour, sessionConfigs);
+      result.session = determineSessionByTime(parseInt(timeMatch[1], 10), sessionConfigs);
     }
-
-    const rrMatch = text.match(/(?:Risk\/Reward|Reward|RR|Ratio|Target)[:\s]*([0-9.]+)/i);
-    if (rrMatch) {
-      const parsedR = parseFloat(rrMatch[1]);
-      if (!isNaN(parsedR) && parsedR > 0 && parsedR < 50) result.rMultiple = parsedR;
-    }
-
     return result;
   } catch (err) {
-    console.warn('OCR Parse error:', err);
+    console.warn('OCR error:', err);
     return {};
   }
 };

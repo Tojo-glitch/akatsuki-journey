@@ -8,6 +8,7 @@ import { DashboardView } from './components/dashboard/DashboardView';
 import { LevelOverviewCard } from './components/LevelOverviewCard';
 import { CategoryProgressGrid } from './components/CategoryProgressGrid';
 import { OwnerPinModal } from './components/OwnerPinModal';
+import { ExpressIngestModal } from './components/ExpressIngestModal';
 import { ChartGallery } from './components/ChartGallery';
 import { ImageLightboxModal } from './components/ImageLightboxModal';
 import { LevelPlaceholder } from './components/LevelPlaceholder';
@@ -25,6 +26,7 @@ export function App() {
   const [currentLevel, setCurrentLevel] = useState<JourneyLevel>(1);
   const [activePage, setActivePage] = useState<'main' | 'record-trade' | 'record-pattern' | 'edit-trade' | 'edit-pattern' | 'batch-pattern'>('main');
   const [isPinModalOpen, setIsPinModalOpen] = useState(false);
+  const [isExpressIngestOpen, setIsExpressIngestOpen] = useState(false);
   const [activeLightboxEntry, setActiveLightboxEntry] = useState<ChartEntry | null>(null);
   const [editingPatternEntry, setEditingPatternEntry] = useState<ChartEntry | null>(null);
   const [editingTradeEntry, setEditingTradeEntry] = useState<TradeJournalEntry | null>(null);
@@ -43,7 +45,7 @@ export function App() {
     : entries.filter((e) => e.category === activeCategoryFilter);
 
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: '#f8fafc', padding: '0 24px 80px' }}>
+    <div style={{ minHeight: '100vh', backgroundColor: '#f8fafc', padding: '0 16px 80px' }}>
       <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
         <Header
           currentTab={currentTab}
@@ -74,14 +76,16 @@ export function App() {
 
         {activePage === 'main' && (
           <>
-            <NavigationTabs currentTab={currentTab} onSelectTab={setCurrentTab} currentLevel={currentLevel} onSelectLevel={setCurrentLevel} />
+            <div className="touch-scroll-x" style={{ paddingBottom: '4px' }}>
+              <NavigationTabs currentTab={currentTab} onSelectTab={setCurrentTab} currentLevel={currentLevel} onSelectLevel={setCurrentLevel} />
+            </div>
 
             {currentTab === 'dashboard' && <DashboardView />}
 
             {currentTab === 'journey' && (
               currentLevel === 1 ? (
                 <>
-                  <LevelOverviewCard stats={stats} />
+                  <LevelOverviewCard stats={stats} onOpenExpressIngest={() => setIsExpressIngestOpen(true)} />
                   <CategoryProgressGrid stats={stats} selectedCategory={activeCategoryFilter} onSelectCategory={setCategoryFilter} />
                   <div style={{ marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: '#0f172a' }}>Level 1 Pattern Records ({filteredEntries.length})</h3>
@@ -100,6 +104,7 @@ export function App() {
           </>
         )}
 
+        <ExpressIngestModal isOpen={isExpressIngestOpen} onClose={() => setIsExpressIngestOpen(false)} defaultCategory={activeCategoryFilter === 'all' ? 'internal_up_to_down' : activeCategoryFilter} />
         <OwnerPinModal isOpen={isPinModalOpen} onClose={() => setIsPinModalOpen(false)} />
         <ImageLightboxModal entry={activeLightboxEntry} onClose={() => setActiveLightboxEntry(null)} />
       </div>
